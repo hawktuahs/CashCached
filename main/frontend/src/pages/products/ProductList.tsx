@@ -23,6 +23,7 @@ import { toast } from 'sonner'
 
 interface Product {
   id: string
+  code: string
   name: string
   description: string
   interestRate: number
@@ -52,6 +53,7 @@ export function ProductList() {
         const items = Array.isArray(response.data) ? response.data : []
         const mapped: Product[] = items.map((p: any) => ({
           id: String(p.id ?? p.productCode ?? crypto.randomUUID()),
+          code: String(p.productCode ?? ''),
           name: String(p.productName ?? p.name ?? ''),
           description: String(p.description ?? ''),
           interestRate: Number(p.maxInterestRate ?? p.minInterestRate ?? p.interestRate ?? 0),
@@ -225,7 +227,7 @@ export function ProductList() {
                     </Badge>
                     {isAdmin && (
                       <div className="flex gap-1">
-                        <Link to={`/products/${product.id ? product.id : product.name}/edit`}> 
+                        <Link to={`/products/${product.code || product.id}/edit`}>
                           <Button variant="ghost" size="sm">
                             <Edit className="h-4 w-4" />
                           </Button>
@@ -233,7 +235,7 @@ export function ProductList() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => handleDeleteProduct(product.id)}
+                          onClick={() => handleDeleteProduct(product.code || product.id)}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -279,10 +281,19 @@ export function ProductList() {
                   {product.category}
                 </div>
 
-                <div className="pt-2">
-                  <Button className="w-full" variant="outline">
-                    View Details
-                  </Button>
+                <div className="pt-2 grid grid-cols-2 gap-2">
+                  <Link to={`/fd-calculator?product=${encodeURIComponent(product.code || product.id)}`}>
+                    <Button className="w-full" variant="outline">
+                      Calculate
+                    </Button>
+                  </Link>
+                  {isAdmin && (
+                    <Link to={`/products/${product.code || product.id}/edit`}>
+                      <Button className="w-full" variant="secondary">
+                        Edit
+                      </Button>
+                    </Link>
+                  )}
                 </div>
               </CardContent>
             </Card>

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -51,6 +51,9 @@ export function FdCalculator() {
   const { user } = useAuth()
   const [result, setResult] = useState<CalculationResult | null>(null)
   const [isCalculating, setIsCalculating] = useState(false)
+  const [products, setProducts] = useState<Array<{ code: string; name: string }>>([])
+  const [isLoadingProducts, setIsLoadingProducts] = useState(false)
+  const [customerId, setCustomerId] = useState<number | null>(null)
 
   const form = useForm<CalculatorFormData>({
     resolver: zodResolver(calculatorSchema),
@@ -62,13 +65,54 @@ export function FdCalculator() {
     },
   })
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const preselect = params.get('product')
+    const fetchProducts = async () => {
+      setIsLoadingProducts(true)
+      try {
+        const res = await api.get('/api/v1/product')
+        const items = Array.isArray(res.data) ? res.data : []
+        const mapped = items.map((p: any) => ({
+          code: String(p.productCode ?? ''),
+          name: String(p.productName ?? p.productCode ?? '')
+        }))
+        setProducts(mapped)
+        const current = form.getValues('productCode')
+        if (preselect) form.setValue('productCode', preselect)
+        else if (!current && mapped.length > 0) form.setValue('productCode', mapped[0].code)
+      } catch (e) {
+        // leave products empty
+      } finally {
+        setIsLoadingProducts(false)
+      }
+    }
+    fetchProducts()
+  }, [form])
+
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        const res = await api.get('/api/customer/profile')
+        if (res?.data?.id) setCustomerId(Number(res.data.id))
+      } catch {}
+    }
+    fetchProfile()
+  }, [])
+
   const calculateFD = async (data: CalculatorFormData) => {
     setIsCalculating(true)
     try {
       const freq = data.compoundingFrequency === 'monthly' ? 12 : data.compoundingFrequency === 'quarterly' ? 4 : 1
+      const sanitizedCode = data.productCode.replace(/_/g, '-')
+      const codeValid = /^[A-Z0-9-]{3,20}$/.test(sanitizedCode)
+      if (!codeValid) {
+        toast.error('Selected product code is not compatible with calculator. Please choose a product with a hyphenated code (A-Z, 0-9, - only, max 20 chars).')
+        return
+      }
       const payload = {
-        customerId: user?.id ? Number(user.id) : 0,
-        productCode: data.productCode,
+        customerId: customerId ?? 0,
+        productCode: sanitizedCode,
         principalAmount: data.principal,
         tenureMonths: Math.max(1, Math.round(data.tenure * 12)),
         compoundingFrequency: freq,
@@ -147,13 +191,21 @@ export function FdCalculator() {
                     name="productCode"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Product Code</FormLabel>
-                        <FormControl>
-                          <Input
-                            placeholder="e.g., FD_PREMIUM_1Y"
-                            {...field}
-                          />
-                        </FormControl>
+                        <FormLabel>Product</FormLabel>
+                        <Select value={field.value} onValueChange={field.onChange} disabled={isLoadingProducts}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder={isLoadingProducts ? 'Loading products...' : 'Select a product'} />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {products.map(p => (
+                              <SelectItem key={p.code} value={p.code}>
+                                {p.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                         <FormMessage />
                       </FormItem>
                     )}

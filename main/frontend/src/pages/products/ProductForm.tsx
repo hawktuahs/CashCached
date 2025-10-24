@@ -39,11 +39,26 @@ type ProductFormData = z.infer<typeof productSchema>
 const categories = [
   'Fixed Deposit',
   'Recurring Deposit',
-  'Senior Citizen FD',
-  'Tax Saver FD',
-  'Corporate FD',
-  'NRI FD',
+  'Savings Account',
+  'Current Account',
+  'Personal Loan',
+  'Home Loan',
+  'Car Loan',
+  'Credit Card',
+  'Debit Card',
 ]
+
+const categoryToProductType: Record<string, string> = {
+  'Fixed Deposit': 'FIXED_DEPOSIT',
+  'Recurring Deposit': 'RECURRING_DEPOSIT',
+  'Savings Account': 'SAVINGS_ACCOUNT',
+  'Current Account': 'CURRENT_ACCOUNT',
+  'Personal Loan': 'PERSONAL_LOAN',
+  'Home Loan': 'HOME_LOAN',
+  'Car Loan': 'CAR_LOAN',
+  'Credit Card': 'CREDIT_CARD',
+  'Debit Card': 'DEBIT_CARD',
+}
 
 export function ProductForm() {
   const { id } = useParams()
@@ -114,11 +129,15 @@ export function ProductForm() {
     try {
       const now = new Date().toISOString().slice(0, 10)
       const months = Math.max(1, Math.round(data.tenure * 12))
-      const codeBase = data.name.trim().toUpperCase().replace(/\s+/g, '_').replace(/[^A-Z0-9_\-]/g, '')
+      const rawBase = data.name.trim().toUpperCase().replace(/\s+/g, '-').replace(/[^A-Z0-9-]/g, '')
+      const suffix = Math.random().toString(36).slice(2, 6).toUpperCase()
+      const baseLimited = (rawBase || 'FD').slice(0, 15)
+      const codeCompliant = `${baseLimited}-${suffix}`.slice(0, 20)
+      const productType = categoryToProductType[data.category] || 'FIXED_DEPOSIT'
       const payload = {
-        productCode: codeBase || 'FD_PRODUCT',
+        productCode: codeCompliant,
         productName: data.name,
-        productType: data.category.toUpperCase().replace(/\s+/g, '_'),
+        productType,
         description: data.description,
         minInterestRate: data.interestRate,
         maxInterestRate: data.interestRate,
