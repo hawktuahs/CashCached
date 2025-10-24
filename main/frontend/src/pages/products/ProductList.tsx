@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router'
+import { useI18n } from '@/context/I18nContext'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -37,6 +38,7 @@ interface Product {
 }
 
 export function ProductList() {
+  const { t } = useI18n()
   const { user } = useAuth()
   const [products, setProducts] = useState<Product[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -142,15 +144,14 @@ export function ProductList() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Banking Products</h1>
-          <p className="text-muted-foreground">
-            Explore our range of fixed deposit products and investment options
-          </p>
+          <h1 className="text-3xl font-bold tracking-tight">{t('products.title')}</h1>
+          <p className="text-muted-foreground">&nbsp;</p>
         </div>
         {isAdmin && (
           <Link to="/products/new">
             <Button>
               <Plus className="mr-2 h-4 w-4" />
+              {t('products.addProduct')}
               Add Product
             </Button>
           </Link>
@@ -284,13 +285,13 @@ export function ProductList() {
                 <div className="pt-2 grid grid-cols-2 gap-2">
                   <Link to={`/fd-calculator?product=${encodeURIComponent(product.code || product.id)}`}>
                     <Button className="w-full" variant="outline">
-                      Calculate
+                      {t('products.calculate')}
                     </Button>
                   </Link>
                   {isAdmin && (
                     <Link to={`/products/${product.code || product.id}/edit`}>
                       <Button className="w-full" variant="secondary">
-                        Edit
+                        {t('products.edit')}
                       </Button>
                     </Link>
                   )}

@@ -36,6 +36,7 @@ import {
   X
 } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
+import { useI18n } from '@/context/I18nContext'
 
 const navigation = [
   {
@@ -79,6 +80,8 @@ function AppSidebar() {
   const navigate = useNavigate()
   const location = useLocation()
   const { user, logout } = useAuth()
+  const isStaff = user?.role === 'ADMIN' || user?.role === 'BANKOFFICER'
+  const { t, lang, setLang } = useI18n()
 
   const getRoleBadgeVariant = (role: string) => {
     switch (role) {
@@ -107,7 +110,7 @@ function AppSidebar() {
           </div>
           <div className="flex flex-col">
             <span className="text-sm font-semibold">BT Bank</span>
-            <span className="text-xs text-muted-foreground">Digital Banking</span>
+            <span className="text-xs text-muted-foreground">{t('brand.subtitle')}</span>
           </div>
         </div>
       </SidebarHeader>
@@ -115,7 +118,9 @@ function AppSidebar() {
       <SidebarContent>
         {navigation.map((group) => (
           <SidebarGroup key={group.title}>
-            <SidebarGroupLabel>{group.title}</SidebarGroupLabel>
+            <SidebarGroupLabel>
+              {group.title === 'Overview' ? t('nav.overview') : group.title === 'Banking' ? t('nav.banking') : group.title}
+            </SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
                 {group.items.map((item) => (
@@ -126,7 +131,13 @@ function AppSidebar() {
                       className="w-full justify-start"
                     >
                       <item.icon className="h-4 w-4" />
-                      <span>{item.title}</span>
+                      <span>
+                        {item.title === 'Dashboard' ? t('nav.dashboard') :
+                         item.title === 'My Profile' ? t('nav.profile') :
+                         item.title === 'Products & Pricing' ? t('nav.products') :
+                         item.title === 'FD Calculator' ? t('nav.calculator') :
+                         item.title === 'My Accounts' ? t('nav.accounts') : item.title}
+                      </span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 ))}
@@ -134,6 +145,25 @@ function AppSidebar() {
             </SidebarGroupContent>
           </SidebarGroup>
         ))}
+        {isStaff && (
+          <SidebarGroup>
+            <SidebarGroupLabel>{t('nav.admin')}</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    onClick={() => navigate('/admin')}
+                    isActive={location.pathname === '/admin'}
+                    className="w-full justify-start"
+                  >
+                    <LayoutDashboard className="h-4 w-4" />
+                    <span>{t('nav.admin.dashboard')}</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
       </SidebarContent>
       
       <SidebarFooter className="border-t border-sidebar-border p-4">
@@ -155,6 +185,10 @@ function AppSidebar() {
             </div>
             <span className="text-xs text-muted-foreground">{user?.email}</span>
           </div>
+          <div className="flex items-center gap-1">
+            <Button variant={lang === 'en' ? 'default' : 'outline'} size="sm" onClick={() => setLang('en')}>EN</Button>
+            <Button variant={lang === 'ja' ? 'default' : 'outline'} size="sm" onClick={() => setLang('ja')}>日本語</Button>
+          </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="sm">
@@ -166,12 +200,12 @@ function AppSidebar() {
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => navigate('/profile')}>
                 <User className="mr-2 h-4 w-4" />
-                Profile
+                {t('nav.profile')}
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={logout}>
                 <LogOut className="mr-2 h-4 w-4" />
-                Log out
+                {t('action.logout')}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

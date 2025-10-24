@@ -6,6 +6,9 @@ import com.bt.accounts.entity.AccountTransaction;
 import com.bt.accounts.entity.FdAccount;
 import com.bt.accounts.exception.AccountNotFoundException;
 import com.bt.accounts.exception.InvalidAccountDataException;
+import com.bt.accounts.dto.ApiResponse;
+import com.bt.accounts.client.CustomerDto;
+import com.bt.accounts.client.CustomerServiceClient;
 import com.bt.accounts.repository.AccountTransactionRepository;
 import com.bt.accounts.repository.FdAccountRepository;
 import lombok.RequiredArgsConstructor;
@@ -27,6 +30,7 @@ public class TransactionService {
 
     private final AccountTransactionRepository transactionRepository;
     private final FdAccountRepository accountRepository;
+    private final CustomerServiceClient customerServiceClient;
 
     @Transactional
     public TransactionResponse recordTransaction(String accountNo, TransactionRequest request) {
@@ -58,6 +62,63 @@ public class TransactionService {
         log.info("Recorded transaction: {} for account: {}", transactionId, accountNo);
 
         return TransactionResponse.fromEntity(savedTransaction);
+    }
+
+    @Transactional
+    public TransactionResponse recordSelfTransaction(String accountNo, TransactionRequest request, String authToken) {
+        FdAccount account = accountRepository.findByAccountNo(accountNo)
+                .orElseThrow(() -> new AccountNotFoundException("Account not found: " + accountNo));
+
+        if (account.getStatus() == FdAccount.AccountStatus.CLOSED) {
+            throw new InvalidAccountDataException("Cannot record transaction on closed account: " + accountNo);
+        }
+
+        String subject = getCurrentUsername();
+        boolean owner = false;
+        try {
+            ApiResponse<CustomerDto> res = customerServiceClient.getCurrentProfile(authToken);
+            CustomerDto dto = res != null ? res.getData() : null;
+            String accCid = account.getCustomerId() != null ? account.getCustomerId().trim().toLowerCase() : "";
+            String sub = subject != null ? subject.trim().toLowerCase() : "";
+            String profileId = dto != null && dto.getId() != null ? String.valueOf(dto.getId()).trim().toLowerCase() : "";
+            String profileCustomerId = dto != null && dto.getCustomerId() != null ? dto.getCustomerId().trim().toLowerCase() : "";
+            log.info("Ownership check accountNo={}, accCustomerId={}, jwtSub={}, profileId={}, profileCustomerId={}", accountNo, accCid, sub, profileId, profileCustomerId);
+            owner = !accCid.isEmpty() && (accCid.equals(sub) || accCid.equals(profileId) || accCid.equals(profileCustomerId));
+        } catch (Exception e) {
+            String accCid = account.getCustomerId() != null ? account.getCustomerId().trim().toLowerCase() : "";
+            String sub = subject != null ? subject.trim().toLowerCase() : "";
+            log.info("Ownership check (fallback) accountNo={}, accCustomerId={}, jwtSub={}", accountNo, accCid, sub);
+            owner = !accCid.isEmpty() && accCid.equals(sub);
+        }
+        if (!owner) throw new InvalidAccountDataException("Unauthorized transaction for account: " + accountNo);
+
+        String type = request.getTransactionType();
+        if (!("DEPOSIT".equals(type) || "WITHDRAWAL".equals(type))) {
+            throw new InvalidAccountDataException("Only DEPOSIT or WITHDRAWAL allowed for self transactions");
+        }
+
+        BigDecimal currentBalance = calculateCurrentBalance(accountNo);
+        BigDecimal newBalance = calculateNewBalance(currentBalance, request);
+        if (newBalance.compareTo(BigDecimal.ZERO) < 0) {
+            throw new InvalidAccountDataException("Insufficient balance for withdrawal");
+        }
+
+        String transactionId = generateTransactionId(accountNo);
+
+        AccountTransaction transaction = AccountTransaction.builder()
+                .transactionId(transactionId)
+                .accountNo(accountNo)
+                .transactionType(AccountTransaction.TransactionType.valueOf(type))
+                .amount(request.getAmount())
+                .balanceAfter(newBalance)
+                .description(request.getDescription())
+                .referenceNo(request.getReferenceNo())
+                .processedBy(subject)
+                .remarks(request.getRemarks())
+                .build();
+
+        AccountTransaction saved = transactionRepository.save(transaction);
+        return TransactionResponse.fromEntity(saved);
     }
 
     @Transactional(readOnly = true)

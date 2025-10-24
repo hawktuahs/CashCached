@@ -14,6 +14,7 @@ import {
   Activity
 } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
+import { useI18n } from '@/context/I18nContext'
 
 interface DashboardStats {
   totalAccounts: number
@@ -24,42 +25,43 @@ interface DashboardStats {
 
 export function Dashboard() {
   const { user } = useAuth()
+  const { t } = useI18n()
   const [stats] = useState<DashboardStats | null>(null)
   const [isLoading] = useState(false)
   
 
   const getGreeting = () => {
     const hour = new Date().getHours()
-    if (hour < 12) return 'Good morning'
-    if (hour < 18) return 'Good afternoon'
-    return 'Good evening'
+    if (hour < 12) return t('dashboard.greeting.morning')
+    if (hour < 18) return t('dashboard.greeting.afternoon')
+    return t('dashboard.greeting.evening')
   }
 
   const quickActions = [
     {
-      title: 'FD Calculator',
-      description: 'Calculate your fixed deposit returns',
+      title: t('dashboard.quick.calculator.title'),
+      description: t('dashboard.quick.calculator.desc'),
       icon: Calculator,
       href: '/fd-calculator',
       color: 'bg-blue-500',
     },
     {
-      title: 'My Accounts',
-      description: 'View your account details',
+      title: t('dashboard.quick.accounts.title'),
+      description: t('dashboard.quick.accounts.desc'),
       icon: CreditCard,
       href: '/accounts',
       color: 'bg-green-500',
     },
     {
-      title: 'Products',
-      description: 'Explore banking products',
+      title: t('dashboard.quick.products.title'),
+      description: t('dashboard.quick.products.desc'),
       icon: Package,
       href: '/products',
       color: 'bg-purple-500',
     },
     {
-      title: 'Profile',
-      description: 'Manage your profile',
+      title: t('dashboard.quick.profile.title'),
+      description: t('dashboard.quick.profile.desc'),
       icon: Users,
       href: '/profile',
       color: 'bg-orange-500',
@@ -70,11 +72,9 @@ export function Dashboard() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">
-            {getGreeting()}, {user?.firstName}!
-          </h1>
+          <h1 className="text-3xl font-bold tracking-tight">{getGreeting()}, {user?.firstName}!</h1>
           <p className="text-muted-foreground">
-            Welcome to your BT Bank dashboard
+            {t('dashboard.subtitle')}
           </p>
         </div>
         <Badge variant="outline" className="text-sm">
@@ -85,7 +85,7 @@ export function Dashboard() {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Balance</CardTitle>
+            <CardTitle className="text-sm font-medium">{t('dashboard.card.totalBalance')}</CardTitle>
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -100,7 +100,7 @@ export function Dashboard() {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Accounts</CardTitle>
+            <CardTitle className="text-sm font-medium">{t('dashboard.card.activeAccounts')}</CardTitle>
             <CreditCard className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -115,7 +115,7 @@ export function Dashboard() {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Available Products</CardTitle>
+            <CardTitle className="text-sm font-medium">{t('dashboard.card.availableProducts')}</CardTitle>
             <Package className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -130,7 +130,7 @@ export function Dashboard() {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Recent Transactions</CardTitle>
+            <CardTitle className="text-sm font-medium">{t('dashboard.card.recentTransactions')}</CardTitle>
             <Activity className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -148,10 +148,8 @@ export function Dashboard() {
       <div className="grid gap-6 md:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>Quick Actions</CardTitle>
-            <CardDescription>
-              Access your most used banking features
-            </CardDescription>
+            <CardTitle>{t('dashboard.quick.title')}</CardTitle>
+            <CardDescription>{t('dashboard.quick.subtitle')}</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4 sm:grid-cols-2">
             {quickActions.map((action) => (
@@ -179,10 +177,8 @@ export function Dashboard() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Recent Activity</CardTitle>
-            <CardDescription>
-              Your latest banking activities
-            </CardDescription>
+            <CardTitle>{t('dashboard.activity.title')}</CardTitle>
+            <CardDescription>{t('dashboard.activity.subtitle')}</CardDescription>
           </CardHeader>
           <CardContent>
             {isLoading ? (
@@ -204,13 +200,11 @@ export function Dashboard() {
                     <TrendingUp className="h-4 w-4 text-green-600" />
                   </div>
                   <div className="flex-1 space-y-1">
-                    <p className="text-sm font-medium">Account opened</p>
-                    <p className="text-xs text-muted-foreground">
-                      Fixed Deposit account created
-                    </p>
+                    <p className="text-sm font-medium">{t('dashboard.activity.accountOpened')}</p>
+                    <p className="text-xs text-muted-foreground">{t('dashboard.activity.accountOpened.desc')}</p>
                   </div>
                   <div className="text-xs text-muted-foreground">
-                    Today
+                    {t('dashboard.activity.today')}
                   </div>
                 </div>
                 <div className="flex items-center space-x-4">
@@ -218,13 +212,11 @@ export function Dashboard() {
                     <Calculator className="h-4 w-4 text-blue-600" />
                   </div>
                   <div className="flex-1 space-y-1">
-                    <p className="text-sm font-medium">FD Calculator used</p>
-                    <p className="text-xs text-muted-foreground">
-                      Calculated returns for ₹1,00,000
-                    </p>
+                    <p className="text-sm font-medium">{t('dashboard.activity.calculatorUsed')}</p>
+                    <p className="text-xs text-muted-foreground">{t('dashboard.activity.calculatorUsed.desc')}</p>
                   </div>
                   <div className="text-xs text-muted-foreground">
-                    Yesterday
+                    {t('dashboard.activity.yesterday')}
                   </div>
                 </div>
                 <div className="flex items-center space-x-4">
@@ -232,13 +224,11 @@ export function Dashboard() {
                     <Package className="h-4 w-4 text-purple-600" />
                   </div>
                   <div className="flex-1 space-y-1">
-                    <p className="text-sm font-medium">Product viewed</p>
-                    <p className="text-xs text-muted-foreground">
-                      Fixed Deposit product details
-                    </p>
+                    <p className="text-sm font-medium">{t('dashboard.activity.productViewed')}</p>
+                    <p className="text-xs text-muted-foreground">{t('dashboard.activity.productViewed.desc')}</p>
                   </div>
                   <div className="text-xs text-muted-foreground">
-                    2 days ago
+                    {t('dashboard.activity.daysAgo2')}
                   </div>
                 </div>
               </div>

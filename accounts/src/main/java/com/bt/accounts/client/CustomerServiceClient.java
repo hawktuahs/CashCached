@@ -15,4 +15,8 @@ public interface CustomerServiceClient {
     @GetMapping("/api/v1/customers/validate")
     ApiResponse<Boolean> validateCustomer(
             @RequestHeader("Authorization") String token);
+
+    @GetMapping("/api/customer/profile")
+    ApiResponse<CustomerDto> getCurrentProfile(
+            @RequestHeader("Authorization") String token);
 }

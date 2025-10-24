@@ -49,7 +49,7 @@ public class AccountService {
 
         FdAccount account = FdAccount.builder()
                 .accountNo(accountNo)
-                .customerId(request.getCustomerId())
+                .customerId(String.valueOf(customer.getId()))
                 .productCode(request.getProductCode())
                 .principalAmount(request.getPrincipalAmount())
                 .interestRate(request.getInterestRate())

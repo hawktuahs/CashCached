@@ -58,4 +58,23 @@ public class TransactionController {
 
         return ResponseEntity.ok(response);
     }
+
+    @PostMapping("/{accountNo}/transactions/self")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    @Operation(summary = "Record self transaction", description = "Customers can record deposit/withdrawal on their own account")
+    public ResponseEntity<ApiResponse<TransactionResponse>> recordSelfTransaction(
+            @Parameter(description = "FD Account number") @PathVariable String accountNo,
+            @Valid @RequestBody TransactionRequest request,
+            @RequestHeader("Authorization") String authToken) {
+
+        TransactionResponse transaction = transactionService.recordSelfTransaction(accountNo, request, authToken);
+
+        ApiResponse<TransactionResponse> response = ApiResponse.<TransactionResponse>builder()
+                .success(true)
+                .message("Transaction recorded successfully")
+                .data(transaction)
+                .build();
+
+        return new ResponseEntity<>(response, HttpStatus.CREATED);
+    }
 }

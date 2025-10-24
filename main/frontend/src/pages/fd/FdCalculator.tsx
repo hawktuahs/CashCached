@@ -10,6 +10,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
+import { useI18n } from '@/context/I18nContext'
 import { Separator } from '@/components/ui/separator'
 import { 
   Calculator, 
@@ -49,6 +50,7 @@ const interestRates = [
 
 export function FdCalculator() {
   const { user } = useAuth()
+  const { t } = useI18n()
   const [result, setResult] = useState<CalculationResult | null>(null)
   const [isCalculating, setIsCalculating] = useState(false)
   const [products, setProducts] = useState<Array<{ code: string; name: string }>>([])
@@ -191,7 +193,7 @@ export function FdCalculator() {
                     name="productCode"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Product</FormLabel>
+                        <FormLabel>{t('calculator.product')}</FormLabel>
                         <Select value={field.value} onValueChange={field.onChange} disabled={isLoadingProducts}>
                           <FormControl>
                             <SelectTrigger>
@@ -215,12 +217,11 @@ export function FdCalculator() {
                     name="principal"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Principal Amount (₹)</FormLabel>
+                        <FormLabel>{t('calculator.principal')}</FormLabel>
                         <FormControl>
                           <Input
                             type="number"
-                            placeholder="100000"
-                            {...field}
+                            value={field.value}
                             onChange={(e) => field.onChange(Number(e.target.value))}
                           />
                         </FormControl>
@@ -234,12 +235,12 @@ export function FdCalculator() {
                     name="tenure"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Tenure (Years)</FormLabel>
+                        <FormLabel>{t('calculator.tenureYears')}</FormLabel>
                         <FormControl>
                           <Input
                             type="number"
-                            placeholder="1"
-                            {...field}
+                            step="0.5"
+                            value={field.value}
                             onChange={(e) => field.onChange(Number(e.target.value))}
                           />
                         </FormControl>
@@ -248,24 +249,22 @@ export function FdCalculator() {
                     )}
                   />
 
-                  
-
                   <FormField
                     control={form.control}
                     name="compoundingFrequency"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Compounding Frequency</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormLabel>{t('calculator.compounding')}</FormLabel>
+                        <Select value={field.value} onValueChange={field.onChange}>
                           <FormControl>
                             <SelectTrigger>
-                              <SelectValue placeholder="Select frequency" />
+                              <SelectValue />
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            <SelectItem value="monthly">Monthly</SelectItem>
-                            <SelectItem value="quarterly">Quarterly</SelectItem>
-                            <SelectItem value="yearly">Yearly</SelectItem>
+                            <SelectItem value="monthly">{t('calculator.monthly')}</SelectItem>
+                            <SelectItem value="quarterly">{t('calculator.quarterly')}</SelectItem>
+                            <SelectItem value="yearly">{t('calculator.yearly')}</SelectItem>
                           </SelectContent>
                         </Select>
                         <FormMessage />
@@ -273,16 +272,16 @@ export function FdCalculator() {
                     )}
                   />
 
-                  <Button type="submit" className="w-full" disabled={isCalculating}>
+                  <Button type="submit" disabled={isCalculating}>
                     {isCalculating ? (
                       <>
                         <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                        Calculating...
+                        {t('calculator.calculating')}
                       </>
                     ) : (
                       <>
                         <Calculator className="mr-2 h-4 w-4" />
-                        Calculate Returns
+                        {t('calculator.calculateReturns')}
                       </>
                     )}
                   </Button>
@@ -295,10 +294,10 @@ export function FdCalculator() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <TrendingUp className="h-5 w-5" />
-                Quick Calculations
+                {t('calculator.quickCalculations')}
               </CardTitle>
               <CardDescription>
-                Common FD scenarios with current rates
+                {t('calculator.commonFdScenarios')}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -309,9 +308,9 @@ export function FdCalculator() {
                   onClick={() => handleQuickCalculate(100000, parseInt(rate.tenure), rate.rate)}
                 >
                   <div>
-                    <p className="font-medium">₹1,00,000 for {rate.tenure}</p>
+                    <p className="font-medium">{formatCurrency(100000)} • {rate.tenure}</p>
                     <p className="text-sm text-muted-foreground">
-                      Interest Rate: {rate.rate}% p.a.
+                      {t('calculator.interestRate')}: {rate.rate}%
                     </p>
                   </div>
                   <Badge variant="secondary">{rate.rate}%</Badge>
@@ -327,30 +326,28 @@ export function FdCalculator() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <DollarSign className="h-5 w-5" />
-                  Calculation Results
+                  {t('calculator.calculationResults')}
                 </CardTitle>
                 <CardDescription>
-                  Your FD investment breakdown
+                  {t('calculator.investmentBreakdown')}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <p className="text-sm font-medium text-muted-foreground">Principal Amount</p>
+                    <p className="text-sm text-muted-foreground">{t('calculator.result.principal')}</p>
                     <p className="text-2xl font-bold">{formatCurrency(result.principal)}</p>
                   </div>
                   <div className="space-y-2">
-                    <p className="text-sm font-medium text-muted-foreground">Interest Earned</p>
-                    <p className="text-2xl font-bold text-green-600">
-                      {formatCurrency(result.interestEarned)}
-                    </p>
+                    <p className="text-sm text-muted-foreground">{t('calculator.result.interest')}</p>
+                    <p className="text-2xl font-bold text-green-600">{formatCurrency(result.interestEarned)}</p>
                   </div>
                 </div>
 
                 <Separator />
 
                 <div className="space-y-2">
-                  <p className="text-sm font-medium text-muted-foreground">Maturity Amount</p>
+                  <p className="text-sm text-muted-foreground">{t('calculator.result.maturityAmount')}</p>
                   <p className="text-3xl font-bold text-primary">
                     {formatCurrency(result.maturityAmount)}
                   </p>
@@ -358,11 +355,11 @@ export function FdCalculator() {
 
                 <div className="grid grid-cols-2 gap-4 pt-4">
                   <div className="space-y-2">
-                    <p className="text-sm font-medium text-muted-foreground">Tenure</p>
-                    <p className="text-lg font-semibold">{result.tenure} years</p>
+                    <p className="text-sm text-muted-foreground">{t('calculator.result.tenure')}</p>
+                    <p className="text-lg font-semibold">{result.tenure} {t('calculator.result.years')}</p>
                   </div>
                   <div className="space-y-2">
-                    <p className="text-sm font-medium text-muted-foreground">Effective Rate</p>
+                    <p className="text-sm text-muted-foreground">{t('calculator.result.effectiveRate')}</p>
                     <p className="text-lg font-semibold">{result.effectiveRate.toFixed(2)}%</p>
                   </div>
                 </div>
@@ -371,8 +368,7 @@ export function FdCalculator() {
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <Info className="h-4 w-4" />
                     <span>
-                      Compounding: {result.compoundingFrequency} | 
-                      Total Return: {((result.interestEarned / result.principal) * 100).toFixed(2)}%
+                      {t('calculator.compounding')} {result.compoundingFrequency} | {t('calculator.totalReturn')}: {((result.interestEarned / result.principal) * 100).toFixed(2)}%
                     </span>
                   </div>
                 </div>
@@ -381,17 +377,17 @@ export function FdCalculator() {
           ) : (
             <Card>
               <CardHeader>
-                <CardTitle>Calculation Results</CardTitle>
+                <CardTitle>{t('calculator.results')}</CardTitle>
                 <CardDescription>
-                  Enter your FD details to see the calculation results
+                  {t('calculator.enterFdDetails')}
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="flex items-center justify-center h-48 text-muted-foreground">
                   <div className="text-center">
                     <Calculator className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                    <p>No calculation yet</p>
-                    <p className="text-sm">Fill in the form to see results</p>
+                    <p>{t('calculator.noCalculation')}</p>
+                    <p className="text-sm">{t('calculator.fillForm')}</p>
                   </div>
                 </div>
               </CardContent>
