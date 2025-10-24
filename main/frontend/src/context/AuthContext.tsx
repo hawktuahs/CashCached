@@ -7,13 +7,13 @@ interface User {
   email: string
   firstName: string
   lastName: string
-  role: 'CUSTOMER' | 'BANK_OFFICER' | 'ADMIN'
+  role: 'CUSTOMER' | 'BANKOFFICER' | 'ADMIN'
 }
 
 interface AuthContextType {
   user: User | null
   token: string | null
-  login: (email: string, password: string) => Promise<void>
+  login: (username: string, password: string) => Promise<void>
   register: (userData: RegisterData) => Promise<void>
   logout: () => void
   isLoading: boolean
@@ -21,10 +21,13 @@ interface AuthContextType {
 }
 
 interface RegisterData {
+  username: string
   email: string
   password: string
   firstName: string
   lastName: string
+  phoneNumber: string
+  role: 'CUSTOMER' | 'BANKOFFICER' | 'ADMIN'
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -41,13 +44,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const storedToken = localStorage.getItem('token')
       if (storedToken) {
         try {
-          const decoded = jwtDecode<{ sub: string; role: string; email: string; firstName: string; lastName: string }>(storedToken)
+          const decoded = jwtDecode<{ sub: string; role: string }>(storedToken)
           setUser({
             id: decoded.sub,
-            email: decoded.email,
-            firstName: decoded.firstName,
-            lastName: decoded.lastName,
-            role: decoded.role as 'CUSTOMER' | 'BANK_OFFICER' | 'ADMIN'
+            email: '',
+            firstName: '',
+            lastName: '',
+            role: decoded.role as 'CUSTOMER' | 'BANKOFFICER' | 'ADMIN'
           })
           setToken(storedToken)
           api.defaults.headers.common['Authorization'] = `Bearer ${storedToken}`
@@ -62,22 +65,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     initializeAuth()
   }, [])
 
-  const login = async (email: string, password: string) => {
+  const login = async (username: string, password: string) => {
     try {
-      const response = await api.post('/api/auth/login', { email, password })
+      const response = await api.post('/api/auth/login', { username, password })
       const { token: newToken } = response.data
       
       localStorage.setItem('token', newToken)
       setToken(newToken)
       api.defaults.headers.common['Authorization'] = `Bearer ${newToken}`
       
-      const decoded = jwtDecode<{ sub: string; role: string; email: string; firstName: string; lastName: string }>(newToken)
+      const decoded = jwtDecode<{ sub: string; role: string }>(newToken)
       setUser({
         id: decoded.sub,
-        email: decoded.email,
-        firstName: decoded.firstName,
-        lastName: decoded.lastName,
-        role: decoded.role as 'CUSTOMER' | 'BANK_OFFICER' | 'ADMIN'
+        email: '',
+        firstName: '',
+        lastName: '',
+        role: decoded.role as 'CUSTOMER' | 'BANKOFFICER' | 'ADMIN'
       })
     } catch (error) {
       throw new Error('Login failed')
@@ -86,20 +89,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const register = async (userData: RegisterData) => {
     try {
-      const response = await api.post('/api/auth/register', userData)
+      const payload = {
+        username: userData.username,
+        password: userData.password,
+        fullName: `${userData.firstName} ${userData.lastName}`,
+        email: userData.email,
+        phoneNumber: userData.phoneNumber,
+        role: userData.role,
+      }
+      const response = await api.post('/api/auth/register', payload)
       const { token: newToken } = response.data
       
       localStorage.setItem('token', newToken)
       setToken(newToken)
       api.defaults.headers.common['Authorization'] = `Bearer ${newToken}`
       
-      const decoded = jwtDecode<{ sub: string; role: string; email: string; firstName: string; lastName: string }>(newToken)
+      const decoded = jwtDecode<{ sub: string; role: string }>(newToken)
       setUser({
         id: decoded.sub,
-        email: decoded.email,
-        firstName: decoded.firstName,
-        lastName: decoded.lastName,
-        role: decoded.role as 'CUSTOMER' | 'BANK_OFFICER' | 'ADMIN'
+        email: userData.email,
+        firstName: userData.firstName,
+        lastName: userData.lastName,
+        role: decoded.role as 'CUSTOMER' | 'BANKOFFICER' | 'ADMIN'
       })
     } catch (error) {
       throw new Error('Registration failed')

@@ -54,7 +54,7 @@ export function AccountDetails() {
   const [isLoading, setIsLoading] = useState(true)
   const [isLoadingTransactions, setIsLoadingTransactions] = useState(false)
 
-  const isAdmin = user?.role === 'ADMIN' || user?.role === 'BANK_OFFICER'
+  const isAdmin = user?.role === 'ADMIN' || user?.role === 'BANKOFFICER'
 
   useEffect(() => {
     const fetchAccountDetails = async () => {

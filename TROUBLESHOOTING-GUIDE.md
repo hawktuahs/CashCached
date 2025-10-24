@@ -5,16 +5,30 @@
 ### Issue 1: Registration API Returns 500 Error
 **Problem**: `POST http://localhost:8080/api/auth/register 500 (Internal Server Error)`
 
-**Root Cause**: The customer microservice is not running, so the gateway cannot proxy the request.
+**Root Cause**: CORS configuration in microservices was blocking requests from localhost:8080
+
+**Solution**: ✅ **FIXED** - Updated CORS configuration in all microservices:
+- Customer Service: Added `http://localhost:8080` to allowed origins
+- FD Calculator Service: Added `http://localhost:8080` to allowed origins
+- Product Service: Already had `http://localhost:8080` configured
+- Accounts Service: Already allows all origins (`*`)
+
+### Issue 2: Services Not Starting
+**Problem**: Services fail to start or are not accessible
 
 **Solution**:
-1. Start the customer service first:
+1. Start services in the correct order:
    ```bash
+   # Terminal 1 - Customer Service
    cd customer
    mvn spring-boot:run
+   
+   # Terminal 2 - Main Gateway (after customer service is running)
+   cd main
+   mvn spring-boot:run
    ```
-2. Wait for it to start completely (look for "Started CustomerApplication")
-3. Then test registration again
+2. Wait for "Started [ServiceName]Application" message
+3. Test registration at http://localhost:8080
 
 ### Issue 2: Swagger Documentation Not Loading
 **Problem**: "Failed to load API definition. Fetch error response status is 500 /docs/accounts"

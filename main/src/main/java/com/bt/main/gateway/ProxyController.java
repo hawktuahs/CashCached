@@ -9,12 +9,14 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.bind.annotation.CrossOrigin;
 
 import java.io.IOException;
 import java.net.URI;
 import java.util.Enumeration;
 
 @RestController
+@CrossOrigin(origins = "http://localhost:5173", allowCredentials = "true")
 public class ProxyController {
 
     @Value("${services.customer.url}")
@@ -35,7 +37,7 @@ public class ProxyController {
             "/api/v1/product/**",
             "/api/fd/**",
             "/api/accounts/**"
-    })
+    }, method = { RequestMethod.GET, RequestMethod.POST, RequestMethod.PUT, RequestMethod.DELETE })
     public ResponseEntity<byte[]> proxyApi(HttpServletRequest request, @RequestBody(required = false) byte[] body)
             throws IOException {
         String path = request.getRequestURI();

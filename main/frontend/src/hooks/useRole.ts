@@ -12,9 +12,9 @@ export function useRole() {
   }
 
   const isCustomer = () => hasRole('CUSTOMER')
-  const isBankOfficer = () => hasRole('BANK_OFFICER')
+  const isBankOfficer = () => hasRole('BANKOFFICER')
   const isAdmin = () => hasRole('ADMIN')
-  const isStaff = () => hasRole(['BANK_OFFICER', 'ADMIN'])
+  const isStaff = () => hasRole(['BANKOFFICER', 'ADMIN'])
 
   const canManageProducts = () => isStaff()
   const canViewAllAccounts = () => isStaff()

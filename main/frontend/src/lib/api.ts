@@ -8,7 +8,13 @@ export const api = axios.create({
 })
 
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    const data = response?.data
+    if (data && typeof data === 'object' && 'success' in data && 'data' in data) {
+      response.data = data.data
+    }
+    return response
+  },
   (error) => {
     if (error.response?.status === 401) {
       localStorage.removeItem('token')

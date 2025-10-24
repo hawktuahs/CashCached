@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Link } from 'react-router'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -14,7 +14,6 @@ import {
   Activity
 } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
-import { api } from '@/lib/api'
 
 interface DashboardStats {
   totalAccounts: number
@@ -25,23 +24,9 @@ interface DashboardStats {
 
 export function Dashboard() {
   const { user } = useAuth()
-  const [stats, setStats] = useState<DashboardStats | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
-
-  useEffect(() => {
-    const fetchDashboardData = async () => {
-      try {
-        const response = await api.get('/api/dashboard/stats')
-        setStats(response.data)
-      } catch (error) {
-        console.error('Failed to fetch dashboard data:', error)
-      } finally {
-        setIsLoading(false)
-      }
-    }
-
-    fetchDashboardData()
-  }, [])
+  const [stats] = useState<DashboardStats | null>(null)
+  const [isLoading] = useState(false)
+  
 
   const getGreeting = () => {
     const hour = new Date().getHours()

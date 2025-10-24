@@ -42,13 +42,13 @@ export function AccountsList() {
   const [statusFilter, setStatusFilter] = useState('all')
   const [typeFilter, setTypeFilter] = useState('all')
 
-  const isAdmin = user?.role === 'ADMIN' || user?.role === 'BANK_OFFICER'
+  const isAdmin = user?.role === 'ADMIN' || user?.role === 'BANKOFFICER'
 
   useEffect(() => {
     const fetchAccounts = async () => {
       try {
-        const endpoint = isAdmin ? '/api/accounts' : '/api/accounts/my'
-        const response = await api.get(endpoint)
+        if (!user?.id) throw new Error('Missing user id')
+        const response = await api.get(`/api/accounts/customer/${user.id}`)
         setAccounts(response.data)
       } catch (error) {
         console.error('Failed to fetch accounts:', error)
@@ -59,7 +59,7 @@ export function AccountsList() {
     }
 
     fetchAccounts()
-  }, [isAdmin])
+  }, [user?.id])
 
   const filteredAccounts = accounts
     .filter(account => {
@@ -275,7 +275,7 @@ export function AccountsList() {
                 </div>
 
                 <div className="pt-2">
-                  <Link to={`/accounts/${account.id}`}>
+                  <Link to={`/accounts/${account.accountNumber}`}>
                     <Button className="w-full" variant="outline">
                       <Eye className="mr-2 h-4 w-4" />
                       View Details

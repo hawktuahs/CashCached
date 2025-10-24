@@ -53,7 +53,7 @@ export function ProductForm() {
   const [isSaving, setIsSaving] = useState(false)
 
   const isEdit = !!id
-  const isAdmin = user?.role === 'ADMIN' || user?.role === 'BANK_OFFICER'
+  const isAdmin = user?.role === 'ADMIN' || user?.role === 'BANKOFFICER'
 
   const form = useForm<ProductFormData>({
     resolver: zodResolver(productSchema),
@@ -82,14 +82,14 @@ export function ProductForm() {
           const response = await api.get(`/api/v1/product/${id}`)
           const product = response.data
           form.reset({
-            name: product.name,
-            description: product.description,
-            interestRate: product.interestRate,
-            minAmount: product.minAmount,
-            maxAmount: product.maxAmount,
-            tenure: product.tenure,
-            category: product.category,
-            isActive: product.isActive,
+            name: product.productName || '',
+            description: product.description || '',
+            interestRate: Number(product.maxInterestRate ?? product.minInterestRate ?? 0),
+            minAmount: Number(product.minAmount ?? 0),
+            maxAmount: Number(product.maxAmount ?? 0),
+            tenure: Math.max(1, Math.round((product.maxTermMonths ?? product.minTermMonths ?? 12) / 12)),
+            category: (product.productType || '').toString().replace('_', ' '),
+            isActive: (product.status || 'ACTIVE') === 'ACTIVE',
           })
         } catch (error) {
           console.error('Failed to fetch product:', error)
@@ -112,11 +112,33 @@ export function ProductForm() {
 
     setIsSaving(true)
     try {
+      const now = new Date().toISOString().slice(0, 10)
+      const months = Math.max(1, Math.round(data.tenure * 12))
+      const codeBase = data.name.trim().toUpperCase().replace(/\s+/g, '_').replace(/[^A-Z0-9_\-]/g, '')
+      const payload = {
+        productCode: codeBase || 'FD_PRODUCT',
+        productName: data.name,
+        productType: data.category.toUpperCase().replace(/\s+/g, '_'),
+        description: data.description,
+        minInterestRate: data.interestRate,
+        maxInterestRate: data.interestRate,
+        minTermMonths: months,
+        maxTermMonths: months,
+        minAmount: data.minAmount,
+        maxAmount: data.maxAmount,
+        currency: 'INR',
+        status: data.isActive ? 'ACTIVE' : 'INACTIVE',
+        effectiveDate: now,
+        expiryDate: null,
+        regulatoryCode: '',
+        requiresApproval: false,
+      }
+
       if (isEdit) {
-        await api.put(`/api/v1/product/${id}`, data)
+        await api.put(`/api/v1/product/${id}`, payload)
         toast.success('Product updated successfully')
       } else {
-        await api.post('/api/v1/product', data)
+        await api.post('/api/v1/product', payload)
         toast.success('Product created successfully')
       }
       navigate('/products')

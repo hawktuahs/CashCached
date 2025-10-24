@@ -94,7 +94,12 @@ export function CustomerProfile() {
   const onSubmit = async (data: ProfileFormData) => {
     setIsSaving(true)
     try {
-      const response = await api.put('/api/customer/profile', data)
+      const payload = {
+        fullName: `${data.firstName} ${data.lastName}`.trim(),
+        email: data.email,
+        phoneNumber: data.phone || ''
+      }
+      const response = await api.put('/api/customer/update', payload)
       setProfile(response.data)
       setIsEditing(false)
       toast.success('Profile updated successfully')

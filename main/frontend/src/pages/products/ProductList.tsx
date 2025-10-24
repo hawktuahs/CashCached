@@ -43,13 +43,27 @@ export function ProductList() {
   const [categoryFilter, setCategoryFilter] = useState('all')
   const [sortBy, setSortBy] = useState('name')
 
-  const isAdmin = user?.role === 'ADMIN' || user?.role === 'BANK_OFFICER'
+  const isAdmin = user?.role === 'ADMIN' || user?.role === 'BANKOFFICER'
 
   useEffect(() => {
     const fetchProducts = async () => {
       try {
         const response = await api.get('/api/v1/product')
-        setProducts(response.data)
+        const items = Array.isArray(response.data) ? response.data : []
+        const mapped: Product[] = items.map((p: any) => ({
+          id: String(p.id ?? p.productCode ?? crypto.randomUUID()),
+          name: String(p.productName ?? p.name ?? ''),
+          description: String(p.description ?? ''),
+          interestRate: Number(p.maxInterestRate ?? p.minInterestRate ?? p.interestRate ?? 0),
+          minAmount: Number(p.minAmount ?? 0),
+          maxAmount: Number(p.maxAmount ?? 0),
+          tenure: Math.max(1, Math.round(((p.maxTermMonths ?? p.minTermMonths ?? 12) as number) / 12)),
+          category: String(p.productType ?? p.category ?? ''),
+          isActive: String(p.status ?? 'ACTIVE') === 'ACTIVE',
+          createdAt: String(p.createdAt ?? new Date().toISOString()),
+          updatedAt: String(p.updatedAt ?? new Date().toISOString()),
+        }))
+        setProducts(mapped)
       } catch (error) {
         console.error('Failed to fetch products:', error)
         toast.error('Failed to load products')
@@ -75,9 +89,10 @@ export function ProductList() {
 
   const filteredProducts = products
     .filter(product => {
-      const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           product.description.toLowerCase().includes(searchTerm.toLowerCase())
-      const matchesCategory = categoryFilter === 'all' || product.category === categoryFilter
+      const name = (product.name || '').toLowerCase()
+      const desc = (product.description || '').toLowerCase()
+      const matchesSearch = name.includes(searchTerm.toLowerCase()) || desc.includes(searchTerm.toLowerCase())
+      const matchesCategory = categoryFilter === 'all' || (product.category || '') === categoryFilter
       return matchesSearch && matchesCategory
     })
     .sort((a, b) => {
@@ -210,7 +225,7 @@ export function ProductList() {
                     </Badge>
                     {isAdmin && (
                       <div className="flex gap-1">
-                        <Link to={`/products/${product.id}/edit`}>
+                        <Link to={`/products/${product.id ? product.id : product.name}/edit`}> 
                           <Button variant="ghost" size="sm">
                             <Edit className="h-4 w-4" />
                           </Button>

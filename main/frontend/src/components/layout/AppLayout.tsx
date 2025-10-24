@@ -84,13 +84,18 @@ function AppSidebar() {
     switch (role) {
       case 'ADMIN':
         return 'destructive'
-      case 'BANK_OFFICER':
+      case 'BANKOFFICER':
         return 'default'
       case 'CUSTOMER':
         return 'secondary'
       default:
         return 'outline'
     }
+  }
+
+  const getRoleLabel = (role: string) => {
+    if (role === 'BANKOFFICER') return 'BANK OFFICER'
+    return role
   }
 
   return (
@@ -145,7 +150,7 @@ function AppSidebar() {
                 {user?.firstName} {user?.lastName}
               </span>
               <Badge variant={getRoleBadgeVariant(user?.role || '')} className="text-xs">
-                {user?.role?.replace('_', ' ')}
+                {getRoleLabel(user?.role || '')}
               </Badge>
             </div>
             <span className="text-xs text-muted-foreground">{user?.email}</span>

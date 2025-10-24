@@ -19,11 +19,12 @@ import {
   RefreshCw
 } from 'lucide-react'
 import { api } from '@/lib/api'
+import { useAuth } from '@/context/AuthContext'
 
 const calculatorSchema = z.object({
+  productCode: z.string().min(3, 'Product code is required'),
   principal: z.number().min(1000, 'Minimum amount is ₹1,000'),
   tenure: z.number().min(1, 'Minimum tenure is 1 year'),
-  interestRate: z.number().min(1, 'Interest rate must be at least 1%'),
   compoundingFrequency: z.enum(['monthly', 'quarterly', 'yearly']),
 })
 
@@ -47,15 +48,16 @@ const interestRates = [
 ]
 
 export function FdCalculator() {
+  const { user } = useAuth()
   const [result, setResult] = useState<CalculationResult | null>(null)
   const [isCalculating, setIsCalculating] = useState(false)
 
   const form = useForm<CalculatorFormData>({
     resolver: zodResolver(calculatorSchema),
     defaultValues: {
+      productCode: '',
       principal: 100000,
       tenure: 1,
-      interestRate: 6.5,
       compoundingFrequency: 'yearly',
     },
   })
@@ -63,8 +65,25 @@ export function FdCalculator() {
   const calculateFD = async (data: CalculatorFormData) => {
     setIsCalculating(true)
     try {
-      const response = await api.post('/api/fd/calculate', data)
-      setResult(response.data)
+      const freq = data.compoundingFrequency === 'monthly' ? 12 : data.compoundingFrequency === 'quarterly' ? 4 : 1
+      const payload = {
+        customerId: user?.id ? Number(user.id) : 0,
+        productCode: data.productCode,
+        principalAmount: data.principal,
+        tenureMonths: Math.max(1, Math.round(data.tenure * 12)),
+        compoundingFrequency: freq,
+      }
+      const response = await api.post('/api/fd/calculate', payload)
+      const r = response.data as any
+      const mapped: CalculationResult = {
+        principal: Number(r.principalAmount ?? r.principal ?? data.principal),
+        interestEarned: Number(r.interestEarned ?? 0),
+        maturityAmount: Number(r.maturityAmount ?? 0),
+        effectiveRate: Number(r.effectiveRate ?? 0),
+        tenure: Number(r.tenureMonths ? Math.round(r.tenureMonths / 12) : data.tenure),
+        compoundingFrequency: String(r.compoundingFrequency ?? data.compoundingFrequency),
+      }
+      setResult(mapped)
     } catch (error) {
       toast.error('Failed to calculate FD returns')
     } finally {
@@ -76,11 +95,13 @@ export function FdCalculator() {
     calculateFD(data)
   }
 
-  const handleQuickCalculate = (principal: number, tenure: number, rate: number) => {
+  const handleQuickCalculate = (principal: number, tenure: number, _rate: number) => {
     form.setValue('principal', principal)
     form.setValue('tenure', tenure)
-    form.setValue('interestRate', rate)
-    calculateFD({ principal, tenure, interestRate: rate, compoundingFrequency: 'yearly' })
+    form.setValue('compoundingFrequency', 'yearly')
+    const current = form.getValues()
+    if (!current.productCode) return toast.error('Please enter a product code first')
+    calculateFD({ productCode: current.productCode, principal, tenure, compoundingFrequency: 'yearly' })
   }
 
   const formatCurrency = (amount: number) => {
@@ -123,6 +144,22 @@ export function FdCalculator() {
                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                   <FormField
                     control={form.control}
+                    name="productCode"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Product Code</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="e.g., FD_PREMIUM_1Y"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
                     name="principal"
                     render={({ field }) => (
                       <FormItem>
@@ -159,25 +196,7 @@ export function FdCalculator() {
                     )}
                   />
 
-                  <FormField
-                    control={form.control}
-                    name="interestRate"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Interest Rate (% per annum)</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="number"
-                            step="0.1"
-                            placeholder="6.5"
-                            {...field}
-                            onChange={(e) => field.onChange(Number(e.target.value))}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                  
 
                   <FormField
                     control={form.control}

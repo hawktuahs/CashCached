@@ -14,7 +14,7 @@ import { CreditCard, Eye, EyeOff } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 
 const loginSchema = z.object({
-  email: z.string().email('Please enter a valid email address'),
+  username: z.string().min(3, 'Username must be at least 3 characters'),
   password: z.string().min(6, 'Password must be at least 6 characters'),
 })
 
@@ -29,7 +29,7 @@ export function Login() {
   const form = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
-      email: '',
+      username: '',
       password: '',
     },
   })
@@ -37,11 +37,11 @@ export function Login() {
   const onSubmit = async (data: LoginFormData) => {
     setIsLoading(true)
     try {
-      await login(data.email, data.password)
+      await login(data.username, data.password)
       toast.success('Login successful!')
       navigate('/dashboard')
     } catch (error) {
-      toast.error('Invalid email or password')
+      toast.error('Invalid username or password')
     } finally {
       setIsLoading(false)
     }
@@ -64,14 +64,13 @@ export function Login() {
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
               <FormField
                 control={form.control}
-                name="email"
+                name="username"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Email</FormLabel>
+                    <FormLabel>Username</FormLabel>
                     <FormControl>
                       <Input
-                        type="email"
-                        placeholder="Enter your email"
+                        placeholder="Enter your username"
                         {...field}
                         disabled={isLoading}
                       />
