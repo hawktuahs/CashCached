@@ -4,6 +4,7 @@ import com.bt.customer.dto.StatusResponse;
 import com.bt.customer.dto.UpdateProfileRequest;
 import com.bt.customer.dto.UserProfileResponse;
 import com.bt.customer.service.CustomerService;
+import com.bt.customer.service.AuthService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -29,6 +30,9 @@ public class CustomerController {
 
     @Autowired
     private CustomerService customerService;
+
+    @Autowired
+    private AuthService authService;
 
     @GetMapping("/profile")
     @Operation(summary = "Get current user profile", description = "Returns authenticated user's profile details")
@@ -108,6 +112,14 @@ public class CustomerController {
     public ResponseEntity<Map<String, Object>> disableTwoFactor() {
         customerService.disableTwoFactorForCurrentUser();
         return ResponseEntity.ok(Map.of("enabled", false));
+    }
+
+    @GetMapping("/security/login-activity")
+    @Operation(summary = "Recent login activity", description = "Returns recent login events for the current user")
+    public ResponseEntity<List<Map<String, Object>>> getRecentLoginActivity(@RequestParam(name = "limit", defaultValue = "10") int limit) {
+        String username = customerService.getCurrentUser().getUsername();
+        List<Map<String, Object>> events = authService.recentLoginActivity(username, Math.max(1, Math.min(50, limit)));
+        return ResponseEntity.ok(events);
     }
 
     @PostMapping("/password/change")

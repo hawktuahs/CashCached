@@ -57,6 +57,9 @@ export function CustomerProfile() {
   const [isSaving, setIsSaving] = useState(false)
   const [twoFactorEnabled, setTwoFactorEnabled] = useState<boolean>(false)
   const [isToggling2fa, setIsToggling2fa] = useState(false)
+  const [showActivity, setShowActivity] = useState(false)
+  const [isLoadingActivity, setIsLoadingActivity] = useState(false)
+  const [activity, setActivity] = useState<Array<{ type: string; ip: string; agent: string; timestamp: string }>>([])
 
   const form = useForm<ProfileFormData>({
     resolver: zodResolver(profileSchema),
@@ -152,6 +155,21 @@ export function CustomerProfile() {
       toast.error(String(msg))
     } finally {
       setIsToggling2fa(false)
+    }
+  }
+
+  const loadLoginActivity = async () => {
+    setIsLoadingActivity(true)
+    try {
+      const res = await api.get('/api/customer/security/login-activity', { params: { limit: 10 } })
+      const root = res?.data
+      const items = Array.isArray(root?.data) ? root.data : (Array.isArray(root) ? root : [])
+      setActivity(items as any)
+    } catch {
+      setActivity([])
+      toast.error('Unable to load login activity')
+    } finally {
+      setIsLoadingActivity(false)
     }
   }
 
@@ -434,10 +452,39 @@ export function CustomerProfile() {
                         {t('profile.security.loginActivity.desc')}
                       </p>
                     </div>
-                    <Button variant="outline" size="sm">
-                      {t('profile.security.loginActivity.view')}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={async () => { setShowActivity(!showActivity); if (!showActivity) await loadLoginActivity() }}
+                    >
+                      {showActivity ? t('common.hide') : t('profile.security.loginActivity.view')}
                     </Button>
                   </div>
+                  {showActivity && (
+                    <div className="border rounded-lg">
+                      <div className="px-4 py-3 border-b text-sm font-medium">Recent logins</div>
+                      <div className="divide-y">
+                        {isLoadingActivity ? (
+                          <div className="px-4 py-6 text-sm text-muted-foreground">Loading activity…</div>
+                        ) : activity.length === 0 ? (
+                          <div className="px-4 py-6 text-sm text-muted-foreground">No recent activity</div>
+                        ) : (
+                          activity.map((ev, idx) => (
+                            <div key={idx} className="px-4 py-3 text-sm flex items-start justify-between gap-4">
+                              <div className="space-y-1">
+                                <div className="font-medium">{ev.type}</div>
+                                <div className="text-muted-foreground break-all max-w-[40ch]">{ev.agent}</div>
+                              </div>
+                              <div className="text-right">
+                                <div className="font-mono text-xs">{ev.ip}</div>
+                                <div className="text-muted-foreground text-xs">{new Date(ev.timestamp).toLocaleString()}</div>
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>

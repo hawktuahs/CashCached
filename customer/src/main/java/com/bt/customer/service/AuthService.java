@@ -18,9 +18,16 @@ import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
+import jakarta.servlet.http.HttpServletRequest;
 import java.time.Instant;
 import java.util.Map;
 import java.util.Random;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Deque;
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Service
@@ -49,11 +56,20 @@ public class AuthService {
     private String fromEmail;
 
     private static final Map<String, OtpEntry> otpStore = new ConcurrentHashMap<>();
+    private static final Map<String, Deque<LoginEvent>> loginActivity = new ConcurrentHashMap<>();
 
     private static class OtpEntry {
         final String code;
         final Instant expiresAt;
         OtpEntry(String code, Instant expiresAt) { this.code = code; this.expiresAt = expiresAt; }
+    }
+
+    private static class LoginEvent {
+        final String type;
+        final String ip;
+        final String agent;
+        final Instant at;
+        LoginEvent(String type, String ip, String agent, Instant at) { this.type = type; this.ip = ip; this.agent = agent; this.at = at; }
     }
 
     @Transactional
@@ -118,6 +134,7 @@ public class AuthService {
             }
 
             String token = tokenProvider.generateTokenForUser(user.getUsername(), user.getRole().name());
+            recordLogin(user.getUsername(), "PASSWORD");
             return new AuthResponse(token, user.getUsername(), user.getRole().name(), "Authentication successful");
         } catch (Exception e) {
             throw new InvalidCredentialsException("Invalid username or password");
@@ -133,6 +150,7 @@ public class AuthService {
         }
         otpStore.remove(username);
         String token = tokenProvider.generateTokenForUser(user.getUsername(), user.getRole().name());
+        recordLogin(user.getUsername(), "OTP");
         return new AuthResponse(token, user.getUsername(), user.getRole().name(), "Authentication successful");
     }
 
@@ -156,5 +174,42 @@ public class AuthService {
         msg.setSubject("Your One-Time Password (OTP)");
         msg.setText("Your OTP is: " + code + "\nIt will expire in 5 minutes.");
         mailSender.send(msg);
+    }
+
+    private void recordLogin(String username, String type) {
+        HttpServletRequest req = currentRequest();
+        String ip = req != null ? clientIp(req) : "";
+        String agent = req != null ? String.valueOf(req.getHeader("User-Agent")) : "";
+        LoginEvent ev = new LoginEvent(type, ip, agent, Instant.now());
+        loginActivity.computeIfAbsent(username, k -> new ArrayDeque<>()).addFirst(ev);
+        Deque<LoginEvent> dq = loginActivity.get(username);
+        while (dq.size() > 20) dq.removeLast();
+    }
+
+    private HttpServletRequest currentRequest() {
+        ServletRequestAttributes attrs = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+        return attrs != null ? attrs.getRequest() : null;
+    }
+
+    private String clientIp(HttpServletRequest req) {
+        String h = req.getHeader("X-Forwarded-For");
+        if (h != null && !h.isBlank()) return h.split(",")[0].trim();
+        return req.getRemoteAddr();
+    }
+
+    public List<Map<String, Object>> recentLoginActivity(String username, int limit) {
+        Deque<LoginEvent> dq = loginActivity.getOrDefault(username, new ArrayDeque<>());
+        List<Map<String, Object>> out = new ArrayList<>();
+        int i = 0;
+        for (LoginEvent e : dq) {
+            if (i++ >= limit) break;
+            out.add(Map.of(
+                    "type", e.type,
+                    "ip", e.ip,
+                    "agent", e.agent,
+                    "timestamp", e.at.toString()
+            ));
+        }
+        return out;
     }
 }

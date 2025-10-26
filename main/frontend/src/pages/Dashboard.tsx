@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -24,19 +24,200 @@ interface DashboardStats {
   recentTransactions: number
 }
 
+interface AccountSummary {
+  accountNumber: string
+  productName: string
+  balance: number
+  interestRate: number
+  maturityDate: string
+  openedOn: string
+}
+
+interface ProductSummary {
+  code: string
+  name: string
+  minInterestRate: number
+  maxInterestRate: number
+  minTermMonths: number
+  maxTermMonths: number
+  description: string
+}
+
+type ChatMessage = {
+  role: 'user' | 'assistant'
+  content: string
+}
+
 export function Dashboard() {
   const { user } = useAuth()
   const { t } = useI18n()
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [customerId, setCustomerId] = useState<string | null>(null)
-  
+  const [aiInput, setAiInput] = useState('')
+  const [aiLoading, setAiLoading] = useState(false)
+  const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [accounts, setAccounts] = useState<AccountSummary[]>([])
+  const [products, setProducts] = useState<ProductSummary[]>([])
+  const GEMINI_API_KEY = 'AIzaSyA3IyyBUjMkFGexYTbJPd_TL2-gHWEtKB0'
+  const chatContainerRef = useRef<HTMLDivElement | null>(null)
+
+  const formatCurrency = (value: number) => {
+    if (!Number.isFinite(value)) return '₹0'
+    return `₹${value.toLocaleString('en-IN')}`
+  }
+
+  useEffect(() => {
+    const el = chatContainerRef.current
+    if (el) {
+      el.scrollTop = el.scrollHeight
+    }
+  }, [messages])
+
+  const formatDate = (value: string) => {
+    if (!value) return 'Not available'
+    const date = new Date(value)
+    if (Number.isNaN(date.getTime())) return value
+    return date.toLocaleDateString()
+  }
+
+  const tryLocalAnswer = (question: string) => {
+    const q = question.toLowerCase()
+    if (!q) return null
+
+    if (q.includes('how many') && q.includes('account')) {
+      return accounts.length
+        ? `You currently hold ${accounts.length} fixed deposit account${accounts.length === 1 ? '' : 's'} with a combined balance of ${formatCurrency(accounts.reduce((sum, acc) => sum + acc.balance, 0))}.`
+        : 'I do not see any fixed deposit accounts on your profile yet.'
+    }
+
+    if (q.includes('total balance') || q.includes('overall balance')) {
+      const balance = stats?.totalBalance ?? accounts.reduce((sum, acc) => sum + acc.balance, 0)
+      return `Your total balance across all BankTrust accounts is ${formatCurrency(balance)}.`
+    }
+
+    const bestKeywords = ['best', 'maximize', 'maximise', 'highest', 'top', 'gain']
+    if (bestKeywords.some((word) => q.includes(word)) && (q.includes('account') || q.includes('deposit') || q.includes('return') || q.includes('interest'))) {
+      const rankedAccounts = [...accounts].filter((acc) => Number.isFinite(acc.interestRate)).sort((a, b) => b.interestRate - a.interestRate)
+      if (rankedAccounts.length) {
+        const top = rankedAccounts[0]
+        return `Among your current holdings, the ${top.productName} account (${top.accountNumber}) offers the highest rate at ${top.interestRate}% with a balance of ${formatCurrency(top.balance)}.`
+      }
+
+      const rankedProducts = [...products]
+        .filter((prod) => Number.isFinite(prod.maxInterestRate))
+        .sort((a, b) => b.maxInterestRate - a.maxInterestRate)
+      if (rankedProducts.length) {
+        const topProduct = rankedProducts[0]
+        return `${topProduct.name} (${topProduct.code}) currently advertises the strongest upside with up to ${topProduct.maxInterestRate}% interest for tenures between ${topProduct.minTermMonths} and ${topProduct.maxTermMonths} months.`
+      }
+
+      return 'I could not find any fixed deposit offers to compare yet. Try syncing your accounts or check back in a moment.'
+    }
+
+    if (q.includes('matur')) {
+      const withMaturity = accounts
+        .map((acc) => ({ ...acc, maturityMs: Date.parse(acc.maturityDate), openedMs: Date.parse(acc.openedOn) }))
+        .filter((acc) => Number.isFinite(acc.maturityMs))
+        .sort((a, b) => a.maturityMs! - b.maturityMs!)
+
+      if (!withMaturity.length) {
+        return 'I could not find maturity dates for your accounts yet. Once they are available, I will track them for you.'
+      }
+
+      let target = withMaturity[0]
+      if (q.includes('latest') || q.includes('longest')) {
+        target = withMaturity[withMaturity.length - 1]
+      } else if (q.includes('first')) {
+        const byOpened = withMaturity
+          .filter((acc) => Number.isFinite(acc.openedMs))
+          .sort((a, b) => a.openedMs! - b.openedMs!)
+        if (byOpened.length) target = byOpened[0]
+      }
+
+      const maturityDate = formatDate(target.maturityDate)
+      return `Your ${target.productName} account (${target.accountNumber}) matures on ${maturityDate}.`
+    }
+
+    return null
+  }
 
   const getGreeting = () => {
     const hour = new Date().getHours()
     if (hour < 12) return t('dashboard.greeting.morning')
     if (hour < 18) return t('dashboard.greeting.afternoon')
     return t('dashboard.greeting.evening')
+  }
+
+  const askGemini = async () => {
+    const trimmed = aiInput.trim()
+    if (!trimmed) return
+    const userMessage: ChatMessage = { role: 'user', content: trimmed }
+    const pendingMessages = [...messages, userMessage]
+    setMessages(pendingMessages)
+    setAiLoading(true)
+    setAiInput('')
+    try {
+      const localAnswer = tryLocalAnswer(trimmed)
+      if (localAnswer) {
+        setMessages([...pendingMessages, { role: 'assistant', content: localAnswer }])
+        return
+      }
+
+      const instruction = 'You are the BankTrust dashboard assistant. Provide actionable guidance using the customer data below. Reference specific BankTrust accounts and fixed deposit offerings from the provided context. Always keep the conversation grounded in the BankTrust application and ask for missing details instead of refusing.'
+      const totalBalanceValue = stats?.totalBalance ?? accounts.reduce((sum, acc) => sum + acc.balance, 0)
+      const accountSection = accounts.length
+        ? accounts
+            .slice(0, 8)
+            .map((acc, index) => `Account ${index + 1}: ${acc.productName} • Number ${acc.accountNumber} • Balance ${formatCurrency(acc.balance)} • Interest ${acc.interestRate}% • Opened ${formatDate(acc.openedOn)} • Matures ${formatDate(acc.maturityDate)}`)
+            .join('\n')
+        : 'No fixed deposit accounts registered.'
+      const productSection = products.length
+        ? products
+            .slice(0, 8)
+            .map((prod, index) => `Product ${index + 1}: ${prod.name} (${prod.code}) • Rate range ${prod.minInterestRate}% - ${prod.maxInterestRate}% • Tenure ${prod.minTermMonths}-${prod.maxTermMonths} months • ${prod.description}`)
+            .join('\n')
+        : 'No fixed deposit products available.'
+      const baseContext = `${instruction}\n\nCustomer snapshot:\n- Name: ${user?.firstName || 'Customer'}\n- Accounts owned: ${accounts.length}\n- Total balance: ${formatCurrency(totalBalanceValue)}\n- Recent transactions counted: ${stats?.recentTransactions || 0}\n- Fixed deposit products available to open: ${products.length}\n\nAccounts detail:\n${accountSection}\n\nProduct catalogue:\n${productSection}`
+
+      const conversationContents = pendingMessages.map((msg) => ({
+        role: msg.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: msg.content }],
+      }))
+
+      const models = [
+        'gemini-2.0-flash',
+        'gemini-2.5-flash-lite',
+        'gemini-2.5-flash',
+        'gemini-2.0-flash-lite',
+        'gemini-2.0-flash-exp'
+      ]
+      let answered = ''
+      const apiVersions = ['v1beta', 'v1']
+      for (const m of models) {
+        for (const ver of apiVersions) {
+          const res = await fetch(`https://generativelanguage.googleapis.com/${ver}/models/${m}:generateContent?key=${GEMINI_API_KEY}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: baseContext }] }, ...conversationContents] })
+          })
+          const data = await res.json()
+          if (res.ok && Array.isArray(data?.candidates)) {
+            answered = (data.candidates[0]?.content?.parts || []).map((p: any) => String(p.text || '')).join('\n')
+            if (answered) break
+          } else if (data?.error?.code !== 404) {
+            break
+          }
+        }
+        if (answered) break
+      }
+      const assistantReply = answered || 'I could not generate a response right now. Please try again or specify what you need from your BankTrust accounts.'
+      setMessages([...pendingMessages, { role: 'assistant', content: assistantReply }])
+    } catch {
+      setMessages([...pendingMessages, { role: 'assistant', content: 'I was unable to reach the AI service. Please try again shortly.' }])
+    } finally {
+      setAiLoading(false)
+    }
   }
 
   const quickActions = [
@@ -77,17 +258,38 @@ export function Dashboard() {
         api.get(`/api/accounts/customer/${cid}`),
         api.get('/api/v1/product'),
       ])
-      const accounts = Array.isArray(accRes.data?.data) ? accRes.data.data : accRes.data
-      const totalAccounts = Array.isArray(accounts) ? accounts.length : 0
-      const totalBalance = (Array.isArray(accounts) ? accounts : []).reduce((s: number, a: any) => {
-        const b = Number(a.currentBalance ?? a.balance ?? a.maturityAmount ?? 0)
-        return s + (isFinite(b) ? b : 0)
-      }, 0)
-      const activeProducts = Array.isArray(prodRes.data) ? prodRes.data.length : 0
+      const accountPayload = Array.isArray(accRes.data?.data) ? accRes.data.data : accRes.data
+      const mappedAccounts = (Array.isArray(accountPayload) ? accountPayload : []).map((a: any) => {
+        const accountNumber = String(a.accountNo ?? a.accountNumber ?? '')
+        const productName = String(a.productName ?? a.productCode ?? 'Fixed Deposit')
+        const balance = Number(a.currentBalance ?? a.balance ?? a.maturityAmount ?? 0)
+        const interestRate = Number(a.interestRate ?? a.rate ?? 0)
+        const maturityDate = String(a.maturityDate ?? a.maturity_date ?? '')
+        const openedOn = String(a.createdAt ?? a.openedOn ?? a.opened_at ?? '')
+        return { accountNumber, productName, balance: isFinite(balance) ? balance : 0, interestRate, maturityDate, openedOn }
+      })
+      setAccounts(mappedAccounts)
+      const totalAccounts = mappedAccounts.length
+      const totalBalance = mappedAccounts.reduce((sum, account) => sum + (isFinite(account.balance) ? account.balance : 0), 0)
+
+      const productPayload = Array.isArray(prodRes.data?.data) ? prodRes.data.data : prodRes.data
+      const mappedProducts = (Array.isArray(productPayload) ? productPayload : []).map((p: any) => ({
+        code: String(p.productCode ?? p.code ?? ''),
+        name: String(p.productName ?? p.name ?? ''),
+        minInterestRate: Number(p.minInterestRate ?? p.minRate ?? 0),
+        maxInterestRate: Number(p.maxInterestRate ?? p.maxRate ?? 0),
+        minTermMonths: Number(p.minTermMonths ?? p.minTenure ?? 0),
+        maxTermMonths: Number(p.maxTermMonths ?? p.maxTenure ?? 0),
+        description: String(p.description ?? p.productDescription ?? ''),
+      }))
+      setProducts(mappedProducts)
+      const activeProducts = mappedProducts.length
+
       let recentTransactions = 0
-      if (Array.isArray(accounts) && accounts.length) {
-        const firstFew = accounts.slice(0, Math.min(3, accounts.length))
-        const txLists = await Promise.allSettled(firstFew.map((a: any) => api.get(`/api/accounts/${a.accountNo ?? a.accountNumber}/transactions`)))
+      const accountsForTransactions = mappedAccounts.filter((a) => a.accountNumber)
+      if (accountsForTransactions.length) {
+        const firstFew = accountsForTransactions.slice(0, Math.min(3, accountsForTransactions.length))
+        const txLists = await Promise.allSettled(firstFew.map((a) => api.get(`/api/accounts/${a.accountNumber}/transactions`)))
         recentTransactions = txLists.reduce((sum, r) => {
           if (r.status === 'fulfilled') {
             const list = Array.isArray(r.value.data?.data) ? r.value.data.data : r.value.data
@@ -98,6 +300,8 @@ export function Dashboard() {
       }
       setStats({ totalAccounts, totalBalance, activeProducts, recentTransactions })
     } catch {
+      setAccounts([])
+      setProducts([])
       setStats({ totalAccounts: 0, totalBalance: 0, activeProducts: 0, recentTransactions: 0 })
     } finally {
       setIsLoading(false)
@@ -235,6 +439,59 @@ export function Dashboard() {
                 </Button>
               </Link>
             ))}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>AI Assistant</CardTitle>
+            <CardDescription>Ask questions about your accounts and products</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="h-60 overflow-y-auto rounded-md border bg-muted/30 p-3 space-y-2 text-sm">
+              <div ref={chatContainerRef} className="flex h-full flex-col gap-2 overflow-y-auto">
+              {messages.length === 0 ? (
+                <div className="text-muted-foreground">Start the conversation to receive tailored answers based on your BankTrust data.</div>
+              ) : (
+                messages.map((msg, index) => (
+                  <div
+                    key={index}
+                    className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                  >
+                    <div
+                      className={`max-w-full rounded-lg px-3 py-2 ${
+                        msg.role === 'user'
+                          ? 'bg-emerald-600 text-white'
+                          : 'bg-white text-foreground shadow-sm'
+                      }`}
+                    >
+                      <div className="whitespace-pre-wrap leading-relaxed">{msg.content}</div>
+                    </div>
+                  </div>
+                ))
+              )}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <textarea
+                value={aiInput}
+                onChange={(e) => setAiInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault()
+                    askGemini()
+                  }
+                }}
+                placeholder="Ask anything..."
+                className="w-full h-24 rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600 disabled:opacity-70"
+                disabled={aiLoading}
+              />
+              <div className="flex justify-end">
+                <Button onClick={askGemini} disabled={aiLoading}>
+                  {aiLoading ? 'Thinking...' : 'Send'}
+                </Button>
+              </div>
+            </div>
           </CardContent>
         </Card>
 
