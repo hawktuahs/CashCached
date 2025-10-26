@@ -45,28 +45,28 @@ export function Dashboard() {
       description: t('dashboard.quick.calculator.desc'),
       icon: Calculator,
       href: '/fd-calculator',
-      color: 'bg-blue-500',
+      color: 'bg-emerald-50 text-emerald-700',
     },
     {
       title: t('dashboard.quick.accounts.title'),
       description: t('dashboard.quick.accounts.desc'),
       icon: CreditCard,
       href: '/accounts',
-      color: 'bg-green-500',
+      color: 'bg-emerald-50 text-emerald-700',
     },
     {
       title: t('dashboard.quick.products.title'),
       description: t('dashboard.quick.products.desc'),
       icon: Package,
       href: '/products',
-      color: 'bg-purple-500',
+      color: 'bg-emerald-50 text-emerald-700',
     },
     {
       title: t('dashboard.quick.profile.title'),
       description: t('dashboard.quick.profile.desc'),
       icon: Users,
       href: '/profile',
-      color: 'bg-orange-500',
+      color: 'bg-emerald-50 text-emerald-700',
     },
   ]
 
@@ -219,10 +219,10 @@ export function Dashboard() {
               <Link key={action.title} to={action.href}>
                 <Button
                   variant="outline"
-                  className="h-auto w-full flex-col items-start p-4 hover:bg-accent"
+                  className="h-auto w-full flex-col items-start p-4 hover:bg-gray-50"
                 >
                   <div className="flex items-center gap-3">
-                    <div className={`rounded-lg p-2 ${action.color} text-white`}>
+                    <div className={`rounded-lg p-2 ${action.color}`}>
                       <action.icon className="h-4 w-4" />
                     </div>
                     <div className="text-left">

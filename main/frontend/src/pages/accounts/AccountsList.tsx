@@ -240,17 +240,8 @@ export function AccountsList() {
     }
   }
 
-  const getAccountTypeColor = (type: string) => {
-    switch (type) {
-      case 'FIXED_DEPOSIT':
-        return 'bg-blue-500'
-      case 'RECURRING_DEPOSIT':
-        return 'bg-green-500'
-      case 'SAVINGS':
-        return 'bg-purple-500'
-      default:
-        return 'bg-gray-500'
-    }
+  const getAccountTypeColor = () => {
+    return 'bg-emerald-50 text-emerald-700'
   }
 
   if (isLoading) {
@@ -504,7 +495,7 @@ export function AccountsList() {
                 <div className="flex items-start justify-between">
                   <div className="space-y-1">
                     <CardTitle className="text-lg flex items-center gap-2">
-                      <div className={`rounded-lg p-2 ${getAccountTypeColor(account.accountType)} text-white`}>
+                      <div className={`rounded-lg p-2 ${getAccountTypeColor()}`}>
                         <CreditCard className="h-4 w-4" />
                       </div>
                       {account.productName}

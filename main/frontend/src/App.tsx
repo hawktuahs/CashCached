@@ -21,11 +21,11 @@ import { ErrorBoundary } from './components/ErrorBoundary'
 function App() {
   return (
     <ErrorBoundary>
-      <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+      <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
         <I18nProvider>
           <AuthProvider>
             <Router>
-            <div className="min-h-screen bg-background">
+            <div className="min-h-screen bg-white text-slate-900">
               <Routes>
                 <Route path="/login" element={<Login />} />
                 <Route path="/register" element={<Register />} />

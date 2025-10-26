@@ -209,7 +209,7 @@ export function AppLayout({ children }: AppLayoutProps) {
       <div className="flex h-screen w-full">
         <AppSidebar />
         <div className="flex flex-1 flex-col overflow-hidden">
-          <header className="flex h-16 items-center gap-4 border-b bg-background px-4 lg:hidden">
+          <header className="flex h-16 items-center gap-4 border-b bg-white shadow-sm px-4 lg:hidden">
             <Button
               variant="ghost"
               size="sm"

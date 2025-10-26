@@ -355,7 +355,7 @@ export function FdCalculator() {
               {interestRates.map((rate, index) => (
                 <div
                   key={index}
-                  className="flex items-center justify-between p-3 border rounded-lg hover:bg-accent cursor-pointer transition-colors"
+                  className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50 cursor-pointer transition-colors"
                   onClick={() => handleQuickCalculate(100000, parseInt(rate.tenure), rate.rate)}
                 >
                   <div>
