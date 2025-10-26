@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Link } from 'react-router'
+import { Link, useLocation } from 'react-router'
 import { useI18n } from '@/context/I18nContext'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -45,6 +45,7 @@ export function ProductList() {
   const [searchTerm, setSearchTerm] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('all')
   const [sortBy, setSortBy] = useState('name')
+  const location = useLocation()
 
   const isAdmin = user?.role === 'ADMIN' || user?.role === 'BANKOFFICER'
 
@@ -52,13 +53,16 @@ export function ProductList() {
     const fetchProducts = async () => {
       try {
         const response = await api.get('/api/v1/product')
-        const items = Array.isArray(response.data) ? response.data : []
+        const root = response?.data
+        const items = Array.isArray(root?.data) ? root.data : (Array.isArray(root) ? root : [])
         const mapped: Product[] = items.map((p: any) => ({
           id: String(p.id ?? p.productCode ?? crypto.randomUUID()),
           code: String(p.productCode ?? ''),
           name: String(p.productName ?? p.name ?? ''),
           description: String(p.description ?? ''),
-          interestRate: Number(p.maxInterestRate ?? p.minInterestRate ?? p.interestRate ?? 0),
+          interestRate: (p.minInterestRate != null && p.maxInterestRate != null)
+            ? (Number(p.minInterestRate) + Number(p.maxInterestRate)) / 2
+            : Number(p.maxInterestRate ?? p.minInterestRate ?? p.interestRate ?? 0),
           minAmount: Number(p.minAmount ?? 0),
           maxAmount: Number(p.maxAmount ?? 0),
           tenure: Math.max(1, Math.round(((p.maxTermMonths ?? p.minTermMonths ?? 12) as number) / 12)),
@@ -70,24 +74,24 @@ export function ProductList() {
         setProducts(mapped)
       } catch (error) {
         console.error('Failed to fetch products:', error)
-        toast.error('Failed to load products')
+        toast.error(t('products.toast.loadFailed'))
       } finally {
         setIsLoading(false)
       }
     }
 
     fetchProducts()
-  }, [])
+  }, [location.key])
 
   const handleDeleteProduct = async (productId: string) => {
-    if (!confirm('Are you sure you want to delete this product?')) return
+    if (!confirm(t('products.confirm.delete'))) return
     
     try {
       await api.delete(`/api/v1/product/${productId}`)
       setProducts(products.filter(p => p.id !== productId))
-      toast.success('Product deleted successfully')
+      toast.success(t('products.toast.deleted'))
     } catch (error) {
-      toast.error('Failed to delete product')
+      toast.error(t('products.toast.deleteFailed'))
     }
   }
 
@@ -152,7 +156,6 @@ export function ProductList() {
             <Button>
               <Plus className="mr-2 h-4 w-4" />
               {t('products.addProduct')}
-              Add Product
             </Button>
           </Link>
         )}
@@ -163,7 +166,7 @@ export function ProductList() {
           <div className="relative flex-1 max-w-sm">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder="Search products..."
+              placeholder={t('common.search')}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-9"
@@ -172,10 +175,10 @@ export function ProductList() {
           <Select value={categoryFilter} onValueChange={setCategoryFilter}>
             <SelectTrigger className="w-40">
               <Filter className="mr-2 h-4 w-4" />
-              <SelectValue placeholder="Category" />
+              <SelectValue placeholder={t('common.category')} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Categories</SelectItem>
+              <SelectItem value="all">{t('common.allCategories')}</SelectItem>
               {categories.map((category) => (
                 <SelectItem key={category} value={category}>
                   {category}
@@ -187,13 +190,13 @@ export function ProductList() {
         
         <Select value={sortBy} onValueChange={setSortBy}>
           <SelectTrigger className="w-40">
-            <SelectValue placeholder="Sort by" />
+            <SelectValue placeholder={t('common.sortBy')} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="name">Name</SelectItem>
-            <SelectItem value="rate">Interest Rate</SelectItem>
-            <SelectItem value="amount">Min Amount</SelectItem>
-            <SelectItem value="tenure">Tenure</SelectItem>
+            <SelectItem value="name">{t('products.sort.name')}</SelectItem>
+            <SelectItem value="rate">{t('products.sort.rate')}</SelectItem>
+            <SelectItem value="amount">{t('products.sort.amount')}</SelectItem>
+            <SelectItem value="tenure">{t('products.sort.tenure')}</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -202,11 +205,11 @@ export function ProductList() {
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
             <Package className="h-12 w-12 text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold mb-2">No products found</h3>
+            <h3 className="text-lg font-semibold mb-2">{t('products.empty.title')}</h3>
             <p className="text-muted-foreground text-center">
               {searchTerm || categoryFilter !== 'all'
-                ? 'Try adjusting your search or filter criteria'
-                : 'No banking products are currently available'}
+                ? t('products.empty.adjustFilters')
+                : t('products.empty.none')}
             </p>
           </CardContent>
         </Card>
@@ -224,7 +227,7 @@ export function ProductList() {
                   </div>
                   <div className="flex items-center gap-2">
                     <Badge variant={product.isActive ? 'default' : 'secondary'}>
-                      {product.isActive ? 'Active' : 'Inactive'}
+                      {product.isActive ? t('status.active') : t('status.inactive')}
                     </Badge>
                     {isAdmin && (
                       <div className="flex gap-1">
@@ -250,7 +253,7 @@ export function ProductList() {
                   <div className="space-y-1">
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <TrendingUp className="h-4 w-4" />
-                      Interest Rate
+                      {t('calculator.interestRate')}
                     </div>
                     <p className="text-xl font-bold text-green-600">
                       {product.interestRate}% p.a.
@@ -259,10 +262,10 @@ export function ProductList() {
                   <div className="space-y-1">
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <Clock className="h-4 w-4" />
-                      Tenure
+                      {t('calculator.result.tenure')}
                     </div>
                     <p className="text-lg font-semibold">
-                      {product.tenure} {product.tenure === 1 ? 'year' : 'years'}
+                      {product.tenure} {product.tenure === 1 ? t('common.year') : t('common.years')}
                     </p>
                   </div>
                 </div>
@@ -270,7 +273,7 @@ export function ProductList() {
                 <div className="space-y-2">
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <DollarSign className="h-4 w-4" />
-                    Investment Range
+                    {t('products.investmentRange')}
                   </div>
                   <p className="text-sm">
                     {formatCurrency(product.minAmount)} - {formatCurrency(product.maxAmount)}

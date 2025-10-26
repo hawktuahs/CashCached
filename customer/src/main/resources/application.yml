@@ -1,6 +1,8 @@
 spring:
   application:
     name: customer-service
+  config:
+    import: optional:file:.env[.properties]
   cloud:
     compatibility-verifier:
       enabled: false
@@ -17,6 +19,18 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.MySQLDialect
         format_sql: true
+
+  mail:
+    host: ${SPRING_MAIL_HOST:smtp.gmail.com}
+    port: ${SPRING_MAIL_PORT:587}
+    username: ${SPRING_MAIL_USERNAME:}
+    password: ${SPRING_MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: ${SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH:true}
+          starttls:
+            enable: ${SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE:true}
 
 server:
   port: 8081
@@ -49,3 +63,7 @@ springdoc:
     operations-sorter: method
     tags-sorter: alpha
     enabled: true
+
+app:
+  mail:
+    from: ${APP_MAIL_FROM:${spring.mail.username}}

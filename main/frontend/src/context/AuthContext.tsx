@@ -18,6 +18,7 @@ interface AuthContextType {
   logout: () => void
   isLoading: boolean
   isAuthenticated: boolean
+  verifyOtp: (username: string, code: string) => Promise<void>
 }
 
 interface RegisterData {
@@ -54,6 +55,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           })
           setToken(storedToken)
           api.defaults.headers.common['Authorization'] = `Bearer ${storedToken}`
+          api.defaults.headers.common['X-User-Id'] = decoded.sub
         } catch (error) {
           localStorage.removeItem('token')
           setToken(null)
@@ -66,25 +68,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const login = async (username: string, password: string) => {
-    try {
-      const response = await api.post('/api/auth/login', { username, password })
-      const { token: newToken } = response.data
-      
-      localStorage.setItem('token', newToken)
-      setToken(newToken)
-      api.defaults.headers.common['Authorization'] = `Bearer ${newToken}`
-      
-      const decoded = jwtDecode<{ sub: string; role: string }>(newToken)
-      setUser({
-        id: decoded.sub,
-        email: '',
-        firstName: '',
-        lastName: '',
-        role: decoded.role as 'CUSTOMER' | 'BANKOFFICER' | 'ADMIN'
-      })
-    } catch (error) {
-      throw new Error('Login failed')
+    const response = await api.post('/api/auth/login', { username, password })
+    if (response?.data?.twoFactorRequired) {
+      throw new Error(`OTP_REQUIRED:${username}`)
     }
+    const { token: newToken } = response.data
+    localStorage.setItem('token', newToken)
+    setToken(newToken)
+    api.defaults.headers.common['Authorization'] = `Bearer ${newToken}`
+    const decoded = jwtDecode<{ sub: string; role: string }>(newToken)
+    setUser({
+      id: decoded.sub,
+      email: '',
+      firstName: '',
+      lastName: '',
+      role: decoded.role as 'CUSTOMER' | 'BANKOFFICER' | 'ADMIN'
+    })
+    api.defaults.headers.common['X-User-Id'] = decoded.sub
+  }
+
+  const verifyOtp = async (username: string, code: string) => {
+    const response = await api.post('/api/auth/verify-otp', { username, code })
+    const { token: newToken } = response.data
+    localStorage.setItem('token', newToken)
+    setToken(newToken)
+    api.defaults.headers.common['Authorization'] = `Bearer ${newToken}`
+    const decoded = jwtDecode<{ sub: string; role: string }>(newToken)
+    setUser({
+      id: decoded.sub,
+      email: '',
+      firstName: '',
+      lastName: '',
+      role: decoded.role as 'CUSTOMER' | 'BANKOFFICER' | 'ADMIN'
+    })
+    api.defaults.headers.common['X-User-Id'] = decoded.sub
   }
 
   const register = async (userData: RegisterData) => {
@@ -112,6 +129,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         lastName: userData.lastName,
         role: decoded.role as 'CUSTOMER' | 'BANKOFFICER' | 'ADMIN'
       })
+      api.defaults.headers.common['X-User-Id'] = decoded.sub
     } catch (error) {
       throw new Error('Registration failed')
     }
@@ -132,7 +150,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       register,
       logout,
       isLoading,
-      isAuthenticated
+      isAuthenticated,
+      verifyOtp
     }}>
       {children}
     </AuthContext.Provider>

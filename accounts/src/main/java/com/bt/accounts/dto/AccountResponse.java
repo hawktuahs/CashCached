@@ -29,6 +29,7 @@ public class AccountResponse {
     private String closedBy;
     private String closureReason;
     private LocalDateTime updatedAt;
+    private BigDecimal currentBalance;
 
     public static AccountResponse fromEntity(FdAccount account) {
         return AccountResponse.builder()

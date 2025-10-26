@@ -15,6 +15,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -45,6 +46,15 @@ public class AuthController {
     })
     public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
         AuthResponse response = authService.login(request);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/verify-otp")
+    @Operation(summary = "Verify OTP", description = "Completes login when two-factor authentication is enabled")
+    public ResponseEntity<AuthResponse> verifyOtp(@RequestBody Map<String, String> body) {
+        String username = String.valueOf(body.getOrDefault("username", ""));
+        String code = String.valueOf(body.getOrDefault("code", ""));
+        AuthResponse response = authService.verifyOtp(username, code);
         return ResponseEntity.ok(response);
     }
 }

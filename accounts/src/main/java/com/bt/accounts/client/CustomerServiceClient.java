@@ -3,6 +3,7 @@ package com.bt.accounts.client;
 import com.bt.accounts.dto.ApiResponse;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.*;
+import java.util.Map;
 
 @FeignClient(name = "customer-service", url = "${services.customer.url}")
 public interface CustomerServiceClient {
@@ -17,6 +18,6 @@ public interface CustomerServiceClient {
             @RequestHeader("Authorization") String token);
 
     @GetMapping("/api/customer/profile")
-    ApiResponse<CustomerDto> getCurrentProfile(
+    Map<String, Object> getCurrentProfile(
             @RequestHeader("Authorization") String token);
 }

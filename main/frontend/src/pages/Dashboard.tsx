@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -15,6 +15,7 @@ import {
 } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { useI18n } from '@/context/I18nContext'
+import { api } from '@/lib/api'
 
 interface DashboardStats {
   totalAccounts: number
@@ -26,8 +27,9 @@ interface DashboardStats {
 export function Dashboard() {
   const { user } = useAuth()
   const { t } = useI18n()
-  const [stats] = useState<DashboardStats | null>(null)
-  const [isLoading] = useState(false)
+  const [stats, setStats] = useState<DashboardStats | null>(null)
+  const [isLoading, setIsLoading] = useState(false)
+  const [customerId, setCustomerId] = useState<string | null>(null)
   
 
   const getGreeting = () => {
@@ -67,6 +69,67 @@ export function Dashboard() {
       color: 'bg-orange-500',
     },
   ]
+
+  const loadStats = async (cid: string) => {
+    setIsLoading(true)
+    try {
+      const [accRes, prodRes] = await Promise.all([
+        api.get(`/api/accounts/customer/${cid}`),
+        api.get('/api/v1/product'),
+      ])
+      const accounts = Array.isArray(accRes.data?.data) ? accRes.data.data : accRes.data
+      const totalAccounts = Array.isArray(accounts) ? accounts.length : 0
+      const totalBalance = (Array.isArray(accounts) ? accounts : []).reduce((s: number, a: any) => {
+        const b = Number(a.currentBalance ?? a.balance ?? a.maturityAmount ?? 0)
+        return s + (isFinite(b) ? b : 0)
+      }, 0)
+      const activeProducts = Array.isArray(prodRes.data) ? prodRes.data.length : 0
+      let recentTransactions = 0
+      if (Array.isArray(accounts) && accounts.length) {
+        const firstFew = accounts.slice(0, Math.min(3, accounts.length))
+        const txLists = await Promise.allSettled(firstFew.map((a: any) => api.get(`/api/accounts/${a.accountNo ?? a.accountNumber}/transactions`)))
+        recentTransactions = txLists.reduce((sum, r) => {
+          if (r.status === 'fulfilled') {
+            const list = Array.isArray(r.value.data?.data) ? r.value.data.data : r.value.data
+            return sum + (Array.isArray(list) ? Math.min(5, list.length) : 0)
+          }
+          return sum
+        }, 0)
+      }
+      setStats({ totalAccounts, totalBalance, activeProducts, recentTransactions })
+    } catch {
+      setStats({ totalAccounts: 0, totalBalance: 0, activeProducts: 0, recentTransactions: 0 })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    const init = async () => {
+      try {
+        const res = await api.get('/api/customer/profile')
+        const id = res?.data?.id ? String(res.data.id) : null
+        if (id) {
+          setCustomerId(id)
+          loadStats(id)
+        }
+      } catch {}
+    }
+    init()
+  }, [])
+
+  useEffect(() => {
+    if (!customerId) return
+    const iv = setInterval(() => loadStats(customerId), 10000)
+    const onVis = () => {
+      if (!document.hidden) loadStats(customerId)
+    }
+    document.addEventListener('visibilitychange', onVis)
+    return () => {
+      clearInterval(iv)
+      document.removeEventListener('visibilitychange', onVis)
+    }
+  }, [customerId])
 
   return (
     <div className="space-y-6">

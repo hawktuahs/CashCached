@@ -9,10 +9,13 @@ import com.bt.customer.security.UserPrincipal;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 @Service
@@ -20,6 +23,11 @@ public class CustomerService {
 
     @Autowired
     private UserRepository userRepository;
+
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+
+    private static final Map<String, Boolean> twoFactorEnabled = new ConcurrentHashMap<>();
 
     public UserProfileResponse getCurrentUserProfile() {
         User user = getCurrentUser();
@@ -77,5 +85,33 @@ public class CustomerService {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new UserNotFoundException("Customer with ID " + id + " not found"));
         return UserProfileResponse.fromUser(user);
+    }
+
+    public void enableTwoFactorForCurrentUser() {
+        User user = getCurrentUser();
+        twoFactorEnabled.put(user.getUsername(), true);
+    }
+
+    public void disableTwoFactorForCurrentUser() {
+        User user = getCurrentUser();
+        twoFactorEnabled.remove(user.getUsername());
+    }
+
+    public boolean isTwoFactorEnabledForCurrentUser() {
+        User user = getCurrentUser();
+        return Boolean.TRUE.equals(twoFactorEnabled.get(user.getUsername()));
+    }
+
+    public void changePassword(String currentPassword, String newPassword) {
+        User user = getCurrentUser();
+        if (!passwordEncoder.matches(currentPassword, user.getPassword())) {
+            throw new IllegalArgumentException("Current password is incorrect");
+        }
+        user.setPassword(passwordEncoder.encode(newPassword));
+        userRepository.save(user);
+    }
+
+    public boolean isTwoFactorEnabled(String username) {
+        return Boolean.TRUE.equals(twoFactorEnabled.get(username));
     }
 }

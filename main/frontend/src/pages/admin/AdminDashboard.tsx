@@ -14,6 +14,8 @@ import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Download } from 'lucide-react'
+import { Sheet, SheetContent, SheetFooter, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import { Label } from '@/components/ui/label'
 
 import { useAuth } from '@/context/AuthContext'
 import { api } from '@/lib/api'
@@ -29,6 +31,7 @@ interface Account {
   createdAt: string
   productName: string
   principalAmount: number
+  productCode?: string
 }
 
 const openAccountSchema = z.object({
@@ -122,6 +125,26 @@ export function AdminDashboard() {
   const [isLoadingAccounts, setIsLoadingAccounts] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
+  const [isUpgradeOpen, setIsUpgradeOpen] = useState(false)
+  const [upgradeTarget, setUpgradeTarget] = useState<Account | null>(null)
+  const [upgradeForm, setUpgradeForm] = useState<{ productCode: string; interestRate: string; tenureMonths: string }>({ productCode: '', interestRate: '', tenureMonths: '' })
+  const [isUpgrading, setIsUpgrading] = useState(false)
+
+  const [isProductOpen, setIsProductOpen] = useState(false)
+  const [isSavingProduct, setIsSavingProduct] = useState(false)
+  const [productForm, setProductForm] = useState({
+    productCode: '',
+    productName: '',
+    minInterestRate: '0',
+    maxInterestRate: '0',
+    minTermMonths: '1',
+    maxTermMonths: '12',
+    minAmount: '0',
+    maxAmount: '0',
+    effectiveDate: new Date().toISOString().slice(0, 10),
+    compoundingFrequency: 'ANNUAL',
+  })
+
   const form = useForm<OpenAccountFormData>({
     resolver: zodResolver(openAccountSchema),
     defaultValues: {
@@ -188,8 +211,9 @@ export function AdminDashboard() {
       setEditingRule(null)
       resetRuleForm()
       toast.success('Rule saved')
-    } catch {
-      toast.error('Failed to save rule')
+    } catch (e: any) {
+      const msg = e?.response?.data?.message || 'Failed to save rule'
+      toast.error(String(msg))
     } finally {
       setIsSavingRule(false)
     }
@@ -219,8 +243,9 @@ export function AdminDashboard() {
       const list = res?.data?.data ?? res?.data ?? []
       setRules(Array.isArray(list) ? list : [])
       toast.success('Rule deleted')
-    } catch {
-      toast.error('Failed to delete rule')
+    } catch (e: any) {
+      const msg = e?.response?.data?.message || 'Failed to delete rule'
+      toast.error(String(msg))
     }
   }
 
@@ -230,7 +255,9 @@ export function AdminDashboard() {
       setIsLoadingAccounts(true)
       try {
         const res = await api.get(`/api/accounts/customer/${selectedCustomer}`)
-        setAccounts(Array.isArray(res.data) ? res.data : [])
+        const payload = res?.data?.data ?? res?.data ?? []
+        const mapped = mapAccountsFromPayload(payload)
+        setAccounts(mapped)
       } finally {
         setIsLoadingAccounts(false)
       }
@@ -243,12 +270,26 @@ export function AdminDashboard() {
       if (!selectedProductId) return
       try {
         const res = await api.get(`/api/v1/pricing-rule/product/${selectedProductId}`)
-        const list = res?.data?.data ?? res?.data ?? []
-        setRules(Array.isArray(list) ? list : [])
-      } catch {}
+        const list = Array.isArray(res?.data) ? res.data : []
+        setRules(list)
+      } catch {
+        try {
+          const code = products.find(p => p.id === selectedProductId)?.code
+          if (code) {
+            const statusRes = await api.get(`/api/v1/product/status/${code}`)
+            const status = statusRes?.data
+            const active = Array.isArray(status?.applicablePricingRules) ? status.applicablePricingRules : []
+            setRules(active)
+          } else {
+            setRules([])
+          }
+        } catch {
+          setRules([])
+        }
+      }
     }
     loadRules()
-  }, [selectedProductId])
+  }, [selectedProductId, products])
 
   const exportCsv = () => {
     const rows = [
@@ -301,9 +342,10 @@ export function AdminDashboard() {
         remarks: data.remarks || '',
       }
       const res = await api.post('/api/accounts/create', payload)
-      if (res?.data?.data?.accountNumber) toast.success('Account created successfully')
+      if (res?.data?.accountNo || res?.data?.accountNumber) toast.success('Account created successfully')
       const refreshed = await api.get(`/api/accounts/customer/${selectedCustomer}`)
-      setAccounts(Array.isArray(refreshed.data) ? refreshed.data : [])
+      const payload2 = refreshed?.data?.data ?? refreshed?.data ?? []
+      setAccounts(mapAccountsFromPayload(payload2))
     } catch {
       toast.error('Failed to create account')
     } finally {
@@ -313,13 +355,90 @@ export function AdminDashboard() {
 
   const closeAccount = async (accountNo: string) => {
     try {
-      await api.put(`/api/accounts/${accountNo}/close`, { reason: 'Closed by admin' })
+      await api.put(`/api/accounts/${accountNo}/close`, { closureReason: 'Closed by admin' })
       const refreshed = await api.get(`/api/accounts/customer/${selectedCustomer}`)
-      setAccounts(Array.isArray(refreshed.data) ? refreshed.data : [])
+      const payload = refreshed?.data?.data ?? refreshed?.data ?? []
+      setAccounts(mapAccountsFromPayload(payload))
       toast.success('Account closed')
-    } catch {
-      toast.error('Failed to close account')
+    } catch (e: any) {
+      const msg = e?.response?.data?.message || 'Failed to close account'
+      toast.error(String(msg))
     }
+  }
+
+  const reopenAccount = async (accountNo: string) => {
+    try {
+      await api.put(`/api/accounts/${accountNo}/reopen`)
+      const refreshed = await api.get(`/api/accounts/customer/${selectedCustomer}`)
+      const payload = refreshed?.data?.data ?? refreshed?.data ?? []
+      setAccounts(mapAccountsFromPayload(payload))
+      toast.success('Account reopened')
+    } catch (e: any) {
+      const msg = e?.response?.data?.message || 'Failed to reopen account'
+      toast.error(String(msg))
+    }
+  }
+
+  const openUpgrade = (acc: Account) => {
+    setUpgradeTarget(acc)
+    setUpgradeForm({
+      productCode: acc.productCode || '',
+      interestRate: acc.interestRate ? String(acc.interestRate) : '',
+      tenureMonths: '',
+    })
+    setIsUpgradeOpen(true)
+  }
+
+  const submitUpgrade = async () => {
+    if (!upgradeTarget) return
+    const payload: any = {}
+    if (upgradeForm.productCode && upgradeForm.productCode !== (upgradeTarget.productCode || '')) payload.productCode = upgradeForm.productCode
+    if (upgradeForm.interestRate) payload.interestRate = Number(upgradeForm.interestRate)
+    if (upgradeForm.tenureMonths) payload.tenureMonths = Number(upgradeForm.tenureMonths)
+    if (Object.keys(payload).length === 0) {
+      toast.message('No changes to apply')
+      return
+    }
+    setIsUpgrading(true)
+    try {
+      await api.put(`/api/accounts/${upgradeTarget.accountNumber}/upgrade`, payload)
+      const refreshed = await api.get(`/api/accounts/customer/${selectedCustomer}`)
+      const data = refreshed?.data?.data ?? refreshed?.data ?? []
+      setAccounts(mapAccountsFromPayload(data))
+      setIsUpgradeOpen(false)
+      setUpgradeTarget(null)
+      toast.success('Account upgraded')
+    } catch (e: any) {
+      const msg = e?.response?.data?.message || 'Failed to upgrade account'
+      toast.error(String(msg))
+    } finally {
+      setIsUpgrading(false)
+    }
+  }
+
+  const mapAccountsFromPayload = (payload: any): Account[] => {
+    const arr = Array.isArray(payload) ? payload : []
+    return arr.map((a: any) => ({
+      id: String(a.id ?? ''),
+      accountNumber: String(a.accountNo ?? a.accountNumber ?? ''),
+      accountType: 'FIXED_DEPOSIT',
+      balance: Number(a.currentBalance ?? a.balance ?? a.maturityAmount ?? 0),
+      interestRate: Number(a.interestRate ?? 0),
+      maturityDate: String(a.maturityDate ?? new Date().toISOString()),
+      status: String(a.status ?? 'ACTIVE') as any,
+      createdAt: String(a.createdAt ?? new Date().toISOString()),
+      productName: String(a.productName ?? a.productCode ?? 'Product'),
+      principalAmount: Number(a.principalAmount ?? 0),
+      productCode: String(a.productCode ?? ''),
+    }))
+  }
+
+  const refreshProducts = async () => {
+    const prodRes = await api.get('/api/v1/product')
+    const p = Array.isArray(prodRes.data) ? prodRes.data : []
+    const mapped = p.map((x: any) => ({ id: Number(x.id ?? 0), code: String(x.productCode || ''), name: String(x.productName || x.productCode || '') }))
+    setProducts(mapped)
+    return mapped
   }
 
   if (!isStaff) return null
@@ -559,6 +678,7 @@ export function AdminDashboard() {
                         ))}
                       </SelectContent>
                     </Select>
+                    <Button type="button" variant="outline" className="mt-2" onClick={() => setIsProductOpen(true)}>Create Product</Button>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -683,9 +803,13 @@ export function AdminDashboard() {
                     </div>
                     <Separator />
                     <div className="flex justify-end gap-2">
-                      <Button variant="destructive" size="sm" onClick={() => closeAccount(acc.accountNumber)}>Close</Button>
+                      {acc.status === 'CLOSED' ? (
+                        <Button size="sm" onClick={() => reopenAccount(acc.accountNumber)}>Reopen</Button>
+                      ) : (
+                        <Button variant="destructive" size="sm" onClick={() => closeAccount(acc.accountNumber)}>Close</Button>
+                      )}
                       <Button variant="outline" size="sm" disabled>Change Number</Button>
-                      <Button variant="outline" size="sm" disabled>Upgrade</Button>
+                      <Button variant="outline" size="sm" onClick={() => openUpgrade(acc)}>Upgrade</Button>
                     </div>
                   </CardContent>
                 </Card>
@@ -694,6 +818,143 @@ export function AdminDashboard() {
           )}
         </CardContent>
       </Card>
+      <Sheet open={isUpgradeOpen} onOpenChange={setIsUpgradeOpen}>
+        <SheetContent>
+          <SheetHeader>
+            <SheetTitle>Upgrade Account</SheetTitle>
+          </SheetHeader>
+          <div className="p-4 space-y-3">
+            <div className="space-y-1">
+              <Label>Product Code</Label>
+              <Select value={upgradeForm.productCode} onValueChange={(v) => setUpgradeForm(s => ({ ...s, productCode: v }))}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select product" />
+                </SelectTrigger>
+                <SelectContent>
+                  {products.map(p => (
+                    <SelectItem key={p.code} value={p.code}>{p.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label>Interest Rate (% p.a.)</Label>
+              <Input type="number" step="0.01" value={upgradeForm.interestRate} onChange={(e) => setUpgradeForm(s => ({ ...s, interestRate: e.target.value }))} />
+            </div>
+            <div className="space-y-1">
+              <Label>Tenure (Months)</Label>
+              <Input type="number" value={upgradeForm.tenureMonths} onChange={(e) => setUpgradeForm(s => ({ ...s, tenureMonths: e.target.value }))} />
+            </div>
+          </div>
+          <SheetFooter>
+            <Button variant="outline" onClick={() => setIsUpgradeOpen(false)}>Cancel</Button>
+            <Button onClick={submitUpgrade} disabled={isUpgrading}>Apply Upgrade</Button>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
+      <Sheet open={isProductOpen} onOpenChange={setIsProductOpen}>
+        <SheetContent>
+          <SheetHeader>
+            <SheetTitle>Create Product</SheetTitle>
+          </SheetHeader>
+          <div className="p-4 space-y-3">
+            <div className="space-y-1">
+              <Label>Product Code</Label>
+              <Input value={productForm.productCode} onChange={(e) => setProductForm(s => ({ ...s, productCode: e.target.value.toUpperCase() }))} />
+            </div>
+            <div className="space-y-1">
+              <Label>Product Name</Label>
+              <Input value={productForm.productName} onChange={(e) => setProductForm(s => ({ ...s, productName: e.target.value }))} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label>Min Interest Rate (%)</Label>
+                <Input type="number" step="0.01" value={productForm.minInterestRate} onChange={(e) => setProductForm(s => ({ ...s, minInterestRate: e.target.value }))} />
+              </div>
+              <div className="space-y-1">
+                <Label>Max Interest Rate (%)</Label>
+                <Input type="number" step="0.01" value={productForm.maxInterestRate} onChange={(e) => setProductForm(s => ({ ...s, maxInterestRate: e.target.value }))} />
+              </div>
+              <div className="space-y-1">
+                <Label>Min Term (Months)</Label>
+                <Input type="number" value={productForm.minTermMonths} onChange={(e) => setProductForm(s => ({ ...s, minTermMonths: e.target.value }))} />
+              </div>
+              <div className="space-y-1">
+                <Label>Max Term (Months)</Label>
+                <Input type="number" value={productForm.maxTermMonths} onChange={(e) => setProductForm(s => ({ ...s, maxTermMonths: e.target.value }))} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label>Min Amount</Label>
+                <Input type="number" value={productForm.minAmount} onChange={(e) => setProductForm(s => ({ ...s, minAmount: e.target.value }))} />
+              </div>
+              <div className="space-y-1">
+                <Label>Max Amount</Label>
+                <Input type="number" value={productForm.maxAmount} onChange={(e) => setProductForm(s => ({ ...s, maxAmount: e.target.value }))} />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <Label>Compounding Frequency</Label>
+              <Select value={productForm.compoundingFrequency} onValueChange={(v) => setProductForm(s => ({ ...s, compoundingFrequency: v }))}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select frequency" />
+                </SelectTrigger>
+                <SelectContent>
+                  {['ANNUAL','SEMI_ANNUAL','QUARTERLY','MONTHLY','DAILY','SIMPLE'].map(opt => (
+                    <SelectItem key={opt} value={opt}>{opt.replace('_',' ')}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label>Effective Date</Label>
+              <Input type="date" value={productForm.effectiveDate} onChange={(e) => setProductForm(s => ({ ...s, effectiveDate: e.target.value }))} />
+            </div>
+          </div>
+          <SheetFooter>
+            <Button variant="outline" onClick={() => setIsProductOpen(false)}>Cancel</Button>
+            <Button onClick={async () => {
+              const minR = Number(productForm.minInterestRate)
+              const maxR = Number(productForm.maxInterestRate)
+              const minT = Number(productForm.minTermMonths)
+              const maxT = Number(productForm.maxTermMonths)
+              if (minR > maxR || minT > maxT) { toast.error('Minimums must be ≤ maximums'); return }
+              setIsSavingProduct(true)
+              try {
+                const payload = {
+                  productCode: productForm.productCode,
+                  productName: productForm.productName,
+                  productType: 'FIXED_DEPOSIT',
+                  description: '',
+                  minInterestRate: minR,
+                  maxInterestRate: maxR,
+                  minTermMonths: minT,
+                  maxTermMonths: maxT,
+                  minAmount: Number(productForm.minAmount),
+                  maxAmount: Number(productForm.maxAmount),
+                  currency: 'INR',
+                  compoundingFrequency: productForm.compoundingFrequency,
+                  effectiveDate: productForm.effectiveDate,
+                  requiresApproval: false,
+                } as any
+                const res = await api.post('/api/v1/product', payload)
+                const created = res?.data
+                const newList = await refreshProducts()
+                const newProd = newList.find(p => p.code === (created?.productCode || payload.productCode))
+                if (newProd) setSelectedProductId(newProd.id)
+                setIsProductOpen(false)
+                toast.success('Product created')
+              } catch (e: any) {
+                const msg = e?.response?.data?.message || 'Failed to create product'
+                toast.error(String(msg))
+              } finally {
+                setIsSavingProduct(false)
+              }
+            }} disabled={isSavingProduct}>Create</Button>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
     </div>
   )
 }

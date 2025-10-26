@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -65,11 +65,19 @@ export function AccountDetails() {
     if (!id || amount <= 0) return
     setIsPosting(true)
     try {
-      await api.post(`/api/accounts/${id}/transactions/self`, {
-        transactionType: t,
-        amount,
-        description: t === 'DEPOSIT' ? 'Customer deposit' : 'Customer withdrawal',
-      })
+      await api.post(
+        `/api/accounts/${id}/transactions/self`,
+        {
+          transactionType: t,
+          amount,
+          description: t === 'DEPOSIT' ? 'Customer deposit' : 'Customer withdrawal',
+        },
+        {
+          headers: {
+            'X-User-Id': String(account?.customerId || user?.id || ''),
+          },
+        }
+      )
       const accRes = await api.get(`/api/accounts/${id}`)
       const payload = accRes?.data?.data ?? accRes?.data
       const a = payload || {}
@@ -77,7 +85,7 @@ export function AccountDetails() {
         id: String(a.id ?? ''),
         accountNumber: String(a.accountNo ?? a.accountNumber ?? id ?? ''),
         accountType: String(a.accountType ?? 'FIXED_DEPOSIT'),
-        balance: Number(a.maturityAmount ?? a.balance ?? 0),
+        balance: Number(a.currentBalance ?? a.balance ?? a.maturityAmount ?? 0),
         interestRate: Number(a.interestRate ?? 0),
         maturityDate: String(a.maturityDate ?? new Date().toISOString()),
         status: String(a.status ?? 'ACTIVE') as any,
@@ -89,8 +97,10 @@ export function AccountDetails() {
         customerEmail: String(a.customerEmail ?? ''),
       })
       toast.success(`${t} recorded`)
-    } catch {
-      toast.error('Failed to record transaction')
+      fetchTransactions()
+    } catch (e: any) {
+      const msg = e?.response?.data?.message || 'Failed to record transaction'
+      toast.error(String(msg))
     } finally {
       setIsPosting(false)
     }
@@ -106,7 +116,7 @@ export function AccountDetails() {
           id: String(a.id ?? ''),
           accountNumber: String(a.accountNo ?? a.accountNumber ?? id ?? ''),
           accountType: String(a.accountType ?? 'FIXED_DEPOSIT'),
-          balance: Number(a.maturityAmount ?? a.balance ?? 0),
+          balance: Number(a.currentBalance ?? a.balance ?? a.maturityAmount ?? 0),
           interestRate: Number(a.interestRate ?? 0),
           maturityDate: String(a.maturityDate ?? new Date().toISOString()),
           status: String(a.status ?? 'ACTIVE') as any,
@@ -149,7 +159,7 @@ export function AccountDetails() {
         amount: Number(t.amount ?? 0),
         description: String(t.description ?? ''),
         timestamp: String(t.timestamp ?? new Date().toISOString()),
-        balance: Number(t.balance ?? 0),
+        balance: Number(t.balanceAfter ?? t.balance ?? 0),
       }))
       setTransactions(mapped)
     } catch (error) {
@@ -159,6 +169,17 @@ export function AccountDetails() {
       setIsLoadingTransactions(false)
     }
   }
+
+  useEffect(() => {
+    if (id) fetchTransactions()
+  }, [id])
+
+  const interestEarned = useMemo(() => {
+    if (!transactions || transactions.length === 0) return 0
+    return transactions
+      .filter((x) => x.type === 'INTEREST')
+      .reduce((sum, x) => sum + (x.amount || 0), 0)
+  }, [transactions])
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-IN', {
@@ -245,10 +266,8 @@ export function AccountDetails() {
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
             <CreditCard className="h-12 w-12 text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold mb-2">Account not found</h3>
-            <p className="text-muted-foreground text-center">
-              The account you're looking for doesn't exist or you don't have permission to view it.
-            </p>
+            <h3 className="text-lg font-semibold mb-2">{t('details.notFound.title')}</h3>
+            <p className="text-muted-foreground text-center">{t('details.notFound.desc')}</p>
           </CardContent>
         </Card>
       </div>
@@ -323,17 +342,17 @@ export function AccountDetails() {
               {user?.role === 'CUSTOMER' && account.status === 'ACTIVE' && (
                 <div className="grid grid-cols-2 gap-4 pt-2">
                   <div className="space-y-2">
-                    <p className="text-sm font-medium text-muted-foreground">Deposit</p>
+                    <p className="text-sm font-medium text-muted-foreground">{t('details.deposit.label')}</p>
                     <div className="flex gap-2">
                       <input type="number" className="w-full border rounded px-2 py-1" value={depositAmount} onChange={(e) => setDepositAmount(Number(e.target.value))} />
-                      <Button size="sm" disabled={isPosting || depositAmount <= 0} onClick={() => postSelfTransaction('DEPOSIT', depositAmount)}>Add</Button>
+                      <Button size="sm" disabled={isPosting || depositAmount <= 0} onClick={() => postSelfTransaction('DEPOSIT', depositAmount)}>{t('details.deposit.action')}</Button>
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <p className="text-sm font-medium text-muted-foreground">Withdraw</p>
+                    <p className="text-sm font-medium text-muted-foreground">{t('details.withdraw.label')}</p>
                     <div className="flex gap-2">
                       <input type="number" className="w-full border rounded px-2 py-1" value={withdrawAmount} onChange={(e) => setWithdrawAmount(Number(e.target.value))} />
-                      <Button size="sm" variant="destructive" disabled={isPosting || withdrawAmount <= 0} onClick={() => postSelfTransaction('WITHDRAWAL', withdrawAmount)}>Withdraw</Button>
+                      <Button size="sm" variant="destructive" disabled={isPosting || withdrawAmount <= 0} onClick={() => postSelfTransaction('WITHDRAWAL', withdrawAmount)}>{t('details.withdraw.action')}</Button>
                     </div>
                   </div>
                 </div>
@@ -365,7 +384,7 @@ export function AccountDetails() {
                 <div className="space-y-2">
                   <p className="text-sm font-medium text-muted-foreground">{t('details.interestEarned')}</p>
                   <p className="text-xl font-semibold text-green-600">
-                    {formatCurrency(account.balance - account.principalAmount)}
+                    {formatCurrency(interestEarned)}
                   </p>
                 </div>
               </div>

@@ -50,6 +50,7 @@ public class ProductService {
                 .expiryDate(request.getExpiryDate())
                 .regulatoryCode(request.getRegulatoryCode())
                 .requiresApproval(request.getRequiresApproval())
+                .compoundingFrequency(request.getCompoundingFrequency())
                 .build();
 
         Product savedProduct = productRepository.save(product);
@@ -79,6 +80,7 @@ public class ProductService {
         product.setExpiryDate(request.getExpiryDate());
         product.setRegulatoryCode(request.getRegulatoryCode());
         product.setRequiresApproval(request.getRequiresApproval());
+        product.setCompoundingFrequency(request.getCompoundingFrequency());
 
         Product updatedProduct = productRepository.save(product);
         return mapToProductResponse(updatedProduct);
@@ -198,6 +200,7 @@ public class ProductService {
                 .expiryDate(product.getExpiryDate())
                 .regulatoryCode(product.getRegulatoryCode())
                 .requiresApproval(product.getRequiresApproval())
+                .compoundingFrequency(product.getCompoundingFrequency())
                 .createdAt(product.getCreatedAt())
                 .updatedAt(product.getUpdatedAt())
                 .build();

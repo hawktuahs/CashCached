@@ -21,6 +21,7 @@ import {
   X
 } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
+import { useI18n } from '@/context/I18nContext'
 import { api } from '@/lib/api'
 
 const profileSchema = z.object({
@@ -49,10 +50,13 @@ interface CustomerProfile {
 
 export function CustomerProfile() {
   const { } = useAuth()
+  const { t } = useI18n()
   const [profile, setProfile] = useState<CustomerProfile | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isEditing, setIsEditing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
+  const [twoFactorEnabled, setTwoFactorEnabled] = useState<boolean>(false)
+  const [isToggling2fa, setIsToggling2fa] = useState(false)
 
   const form = useForm<ProfileFormData>({
     resolver: zodResolver(profileSchema),
@@ -88,7 +92,16 @@ export function CustomerProfile() {
       }
     }
 
+    const fetch2fa = async () => {
+      try {
+        const res = await api.get('/api/customer/security/2fa')
+        const enabled = Boolean(res?.data?.enabled ?? false)
+        setTwoFactorEnabled(enabled)
+      } catch {}
+    }
+
     fetchProfile()
+    fetch2fa()
   }, [form])
 
   const onSubmit = async (data: ProfileFormData) => {
@@ -122,6 +135,40 @@ export function CustomerProfile() {
     setIsEditing(false)
   }
 
+  const toggle2fa = async () => {
+    setIsToggling2fa(true)
+    try {
+      if (twoFactorEnabled) {
+        await api.put('/api/customer/security/2fa/disable')
+        setTwoFactorEnabled(false)
+        toast.success('Two-factor disabled')
+      } else {
+        await api.put('/api/customer/security/2fa/enable')
+        setTwoFactorEnabled(true)
+        toast.success('Two-factor enabled')
+      }
+    } catch (e: any) {
+      const msg = e?.response?.data?.message || 'Failed to update 2FA settings'
+      toast.error(String(msg))
+    } finally {
+      setIsToggling2fa(false)
+    }
+  }
+
+  const changePassword = async () => {
+    const currentPassword = window.prompt('Enter current password') || ''
+    if (!currentPassword) return
+    const newPassword = window.prompt('Enter new password') || ''
+    if (!newPassword) return
+    try {
+      await api.post('/api/customer/password/change', { currentPassword, newPassword })
+      toast.success('Password changed successfully')
+    } catch (e: any) {
+      const msg = e?.response?.data?.message || 'Failed to change password'
+      toast.error(String(msg))
+    }
+  }
+
   if (isLoading) {
     return (
       <div className="space-y-6">
@@ -144,9 +191,9 @@ export function CustomerProfile() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">My Profile</h1>
+          <h1 className="text-3xl font-bold tracking-tight">{t('profile.title')}</h1>
           <p className="text-muted-foreground">
-            Manage your personal information and account settings
+            {t('profile.subtitle')}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -154,20 +201,20 @@ export function CustomerProfile() {
           {!isEditing ? (
             <Button onClick={() => setIsEditing(true)}>
               <Edit3 className="mr-2 h-4 w-4" />
-              Edit Profile
+              {t('profile.edit')}
             </Button>
           ) : (
             <div className="flex gap-2">
               <Button variant="outline" onClick={handleCancel}>
                 <X className="mr-2 h-4 w-4" />
-                Cancel
+                {t('profile.cancel')}
               </Button>
               <Button 
                 onClick={form.handleSubmit(onSubmit)} 
                 disabled={isSaving}
               >
                 <Save className="mr-2 h-4 w-4" />
-                {isSaving ? 'Saving...' : 'Save Changes'}
+                {isSaving ? t('profile.saving') : t('profile.saveChanges')}
               </Button>
             </div>
           )}
@@ -192,20 +239,20 @@ export function CustomerProfile() {
             <CardContent className="space-y-4">
               <div className="flex items-center gap-3 text-sm">
                 <Shield className="h-4 w-4 text-muted-foreground" />
-                <span className="text-muted-foreground">Account Status:</span>
-                <Badge variant="secondary">Active</Badge>
+                <span className="text-muted-foreground">{t('profile.status')}</span>
+                <Badge variant="secondary">{t('profile.status.active')}</Badge>
               </div>
               <Separator />
               <div className="space-y-2 text-sm">
                 <div className="flex items-center gap-3">
                   <Calendar className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-muted-foreground">Member since:</span>
+                  <span className="text-muted-foreground">{t('profile.memberSince')}</span>
                   <span>{new Date(profile?.createdAt || '').toLocaleDateString()}</span>
                 </div>
                 {profile?.lastLoginAt && (
                   <div className="flex items-center gap-3">
                     <Calendar className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-muted-foreground">Last login:</span>
+                    <span className="text-muted-foreground">{t('profile.lastLogin')}</span>
                     <span>{new Date(profile.lastLoginAt).toLocaleDateString()}</span>
                   </div>
                 )}
@@ -217,16 +264,16 @@ export function CustomerProfile() {
         <div className="md:col-span-2">
           <Tabs defaultValue="personal" className="w-full">
             <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="personal">Personal Information</TabsTrigger>
-              <TabsTrigger value="security">Security</TabsTrigger>
+              <TabsTrigger value="personal">{t('profile.tabs.personal')}</TabsTrigger>
+              <TabsTrigger value="security">{t('profile.tabs.security')}</TabsTrigger>
             </TabsList>
             
             <TabsContent value="personal" className="space-y-4">
               <Card>
                 <CardHeader>
-                  <CardTitle>Personal Information</CardTitle>
+                  <CardTitle>{t('profile.section.personal.title')}</CardTitle>
                   <CardDescription>
-                    Update your personal details and contact information
+                    {t('profile.section.personal.desc')}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -238,12 +285,12 @@ export function CustomerProfile() {
                           name="firstName"
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel>First Name</FormLabel>
+                              <FormLabel>{t('profile.field.firstName')}</FormLabel>
                               <FormControl>
                                 <Input
                                   {...field}
                                   disabled={!isEditing}
-                                  placeholder="Enter your first name"
+                                  placeholder={t('profile.placeholder.firstName')}
                                 />
                               </FormControl>
                               <FormMessage />
@@ -255,12 +302,12 @@ export function CustomerProfile() {
                           name="lastName"
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel>Last Name</FormLabel>
+                              <FormLabel>{t('profile.field.lastName')}</FormLabel>
                               <FormControl>
                                 <Input
                                   {...field}
                                   disabled={!isEditing}
-                                  placeholder="Enter your last name"
+                                  placeholder={t('profile.placeholder.lastName')}
                                 />
                               </FormControl>
                               <FormMessage />
@@ -274,13 +321,13 @@ export function CustomerProfile() {
                         name="email"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Email Address</FormLabel>
+                            <FormLabel>{t('profile.field.email')}</FormLabel>
                             <FormControl>
                               <Input
                                 type="email"
                                 {...field}
                                 disabled={!isEditing}
-                                placeholder="Enter your email address"
+                                placeholder={t('profile.placeholder.email')}
                               />
                             </FormControl>
                             <FormMessage />
@@ -293,12 +340,12 @@ export function CustomerProfile() {
                         name="phone"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Phone Number</FormLabel>
+                            <FormLabel>{t('profile.field.phone')}</FormLabel>
                             <FormControl>
                               <Input
                                 {...field}
                                 disabled={!isEditing}
-                                placeholder="Enter your phone number"
+                                placeholder={t('profile.placeholder.phone')}
                               />
                             </FormControl>
                             <FormMessage />
@@ -311,7 +358,7 @@ export function CustomerProfile() {
                         name="dateOfBirth"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Date of Birth</FormLabel>
+                            <FormLabel>{t('profile.field.dob')}</FormLabel>
                             <FormControl>
                               <Input
                                 type="date"
@@ -329,12 +376,12 @@ export function CustomerProfile() {
                         name="address"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Address</FormLabel>
+                            <FormLabel>{t('profile.field.address')}</FormLabel>
                             <FormControl>
                               <Input
                                 {...field}
                                 disabled={!isEditing}
-                                placeholder="Enter your address"
+                                placeholder={t('profile.placeholder.address')}
                               />
                             </FormControl>
                             <FormMessage />
@@ -350,45 +397,45 @@ export function CustomerProfile() {
             <TabsContent value="security" className="space-y-4">
               <Card>
                 <CardHeader>
-                  <CardTitle>Security Settings</CardTitle>
+                  <CardTitle>{t('profile.section.security.title')}</CardTitle>
                   <CardDescription>
-                    Manage your account security and privacy settings
+                    {t('profile.section.security.desc')}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="flex items-center justify-between p-4 border rounded-lg">
                     <div className="space-y-1">
-                      <h4 className="text-sm font-medium">Two-Factor Authentication</h4>
+                      <h4 className="text-sm font-medium">{t('profile.security.2fa.title')}</h4>
                       <p className="text-sm text-muted-foreground">
-                        Add an extra layer of security to your account
+                        {t('profile.security.2fa.desc')}
                       </p>
                     </div>
-                    <Button variant="outline" size="sm">
-                      Enable
+                    <Button variant="outline" size="sm" onClick={toggle2fa} disabled={isToggling2fa}>
+                      {twoFactorEnabled ? 'Disable' : t('profile.security.2fa.enable')}
                     </Button>
                   </div>
                   
                   <div className="flex items-center justify-between p-4 border rounded-lg">
                     <div className="space-y-1">
-                      <h4 className="text-sm font-medium">Change Password</h4>
+                      <h4 className="text-sm font-medium">{t('profile.security.changePassword.title')}</h4>
                       <p className="text-sm text-muted-foreground">
-                        Update your account password
+                        {t('profile.security.changePassword.desc')}
                       </p>
                     </div>
-                    <Button variant="outline" size="sm">
-                      Change
+                    <Button variant="outline" size="sm" onClick={changePassword}>
+                      {t('profile.security.changePassword.change')}
                     </Button>
                   </div>
                   
                   <div className="flex items-center justify-between p-4 border rounded-lg">
                     <div className="space-y-1">
-                      <h4 className="text-sm font-medium">Login Activity</h4>
+                      <h4 className="text-sm font-medium">{t('profile.security.loginActivity.title')}</h4>
                       <p className="text-sm text-muted-foreground">
-                        View your recent login history
+                        {t('profile.security.loginActivity.desc')}
                       </p>
                     </div>
                     <Button variant="outline" size="sm">
-                      View
+                      {t('profile.security.loginActivity.view')}
                     </Button>
                   </div>
                 </CardContent>

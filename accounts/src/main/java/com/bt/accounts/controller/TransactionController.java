@@ -65,9 +65,10 @@ public class TransactionController {
     public ResponseEntity<ApiResponse<TransactionResponse>> recordSelfTransaction(
             @Parameter(description = "FD Account number") @PathVariable String accountNo,
             @Valid @RequestBody TransactionRequest request,
-            @RequestHeader("Authorization") String authToken) {
+            @RequestHeader(value = "X-User-Id", required = false) String userIdHeader,
+            @RequestHeader(value = "Authorization", required = false) String authHeader) {
 
-        TransactionResponse transaction = transactionService.recordSelfTransaction(accountNo, request, authToken);
+        TransactionResponse transaction = transactionService.recordSelfTransaction(accountNo, request, userIdHeader, authHeader);
 
         ApiResponse<TransactionResponse> response = ApiResponse.<TransactionResponse>builder()
                 .success(true)

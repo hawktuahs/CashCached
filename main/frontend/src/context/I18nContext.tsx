@@ -34,6 +34,7 @@ const dict: Dict = {
   'status.active': { en: 'Active', ja: '有効' },
   'status.matured': { en: 'Matured', ja: '満期' },
   'status.closed': { en: 'Closed', ja: '解約済み' },
+  'status.inactive': { en: 'Inactive', ja: '無効' },
   'type.fd': { en: 'Fixed Deposit', ja: '定期預金' },
   'type.rd': { en: 'Recurring Deposit', ja: '積立預金' },
   'type.savings': { en: 'Savings', ja: '普通預金' },
@@ -71,9 +72,18 @@ const dict: Dict = {
   'details.maturityDate': { en: 'Maturity Date', ja: '満期日' },
   'details.daysToMaturity': { en: 'Days to Maturity', ja: '満期までの日数' },
   'details.customerInfo': { en: 'Customer Information', ja: '顧客情報' },
+  'details.deposit.label': { en: 'Deposit', ja: '入金' },
+  'details.deposit.action': { en: 'Add', ja: '追加' },
+  'details.withdraw.label': { en: 'Withdraw', ja: '出金' },
+  'details.withdraw.action': { en: 'Withdraw', ja: '出金する' },
+  'details.notFound.title': { en: 'Account not found', ja: '口座が見つかりません' },
+  'details.notFound.desc': { en: "The account you're looking for doesn't exist or you don't have permission to view it.", ja: 'お探しの口座は存在しないか、表示権限がありません。' },
   'action.download': { en: 'Download', ja: 'ダウンロード' },
   'action.share': { en: 'Share', ja: '共有' },
   'calculator.title': { en: 'FD Calculator', ja: '定期預金計算機' },
+  'calculator.subtitle': { en: 'Calculate your fixed deposit returns and plan your investments', ja: '定期預金のリターンを計算し、投資計画を立てましょう' },
+  'calculator.badge': { en: 'Investment Calculator', ja: '投資計算機' },
+  'calculator.calculateHeadline': { en: 'Calculate FD Returns', ja: '定期預金のリターンを計算' },
   'calculator.product': { en: 'Product', ja: '商品' },
   'calculator.principal': { en: 'Principal Amount (₹)', ja: '元本 (₹)' },
   'calculator.tenureYears': { en: 'Tenure (Years)', ja: '期間 (年)' },
@@ -100,10 +110,39 @@ const dict: Dict = {
   'calculator.enterFdDetails': { en: 'Enter the FD details to see results', ja: '結果を表示するには定期預金の詳細を入力してください' },
   'calculator.noCalculation': { en: 'No calculation yet', ja: 'まだ計算がありません' },
   'calculator.fillForm': { en: 'Fill in the form to see results', ja: 'フォームに入力すると結果が表示されます' },
+  'calculator.loadingProducts': { en: 'Loading products...', ja: '商品を読み込み中...' },
+  'calculator.selectProduct': { en: 'Select a product', ja: '商品を選択' },
+  'calculator.error.calcFailed': { en: 'Failed to calculate FD returns', ja: '定期預金の計算に失敗しました' },
+  'calculator.error.productCodeInvalid': { en: 'Selected product code is not compatible with calculator. Please choose a product with a hyphenated code (A-Z, 0-9, - only, max 20 chars).', ja: '選択した商品コードは計算機に対応していません。ハイフン区切りのコード（A-Z・0-9・- のみ、最大20文字）を持つ商品を選択してください。' },
+  'calculator.error.enterProductFirst': { en: 'Please enter a product code first', ja: '先に商品コードを入力してください' },
+  'calculator.tips.title': { en: 'FD Calculator Tips', ja: '定期預金計算のヒント' },
+  'calculator.tips.higherTenure.title': { en: 'Higher Tenure = Better Returns', ja: '長期期間 = 高いリターン' },
+  'calculator.tips.higherTenure.desc': { en: 'Longer-term FDs typically offer higher interest rates.', ja: '長期間の定期預金は、一般的により高い金利が適用されます。' },
+  'calculator.tips.compounding.title': { en: 'Compounding Frequency', ja: '複利頻度' },
+  'calculator.tips.compounding.desc': { en: 'More frequent compounding (monthly/quarterly) yields better returns.', ja: '複利の頻度（毎月・四半期）が高いほど、リターンが向上します。' },
+  'calculator.tips.tax.title': { en: 'Tax Implications', ja: '税制上の注意' },
+  'calculator.tips.tax.desc': { en: 'FD interest is taxable as per your income tax slab.', ja: '定期預金の利息は、所得税率に応じて課税されます。' },
+  'calculator.validation.notes': { en: 'Notes', ja: '注意事項' },
+  'calculator.validation.tenure': { en: 'Product tenure valid range', ja: '商品適用期間' },
+  'calculator.validation.amount': { en: 'Investment range', ja: '投資範囲' },
+  'calculator.validation.freq': { en: 'Compounding frequency restricted to annual for this product', ja: 'この商品の複利頻度は年次のみです' },
+  'calculator.validation.reason': { en: 'Reason', ja: '理由' },
   'products.title': { en: 'Products & Pricing', ja: '商品と価格' },
   'products.calculate': { en: 'Calculate', ja: '計算' },
   'products.edit': { en: 'Edit', ja: '編集' },
   'products.addProduct': { en: 'Add Product', ja: '商品を追加' },
+  'products.empty.title': { en: 'No products found', ja: '商品が見つかりません' },
+  'products.empty.adjustFilters': { en: 'Try adjusting your search or filter criteria', ja: '検索条件やフィルターを調整してください' },
+  'products.empty.none': { en: 'No banking products are currently available', ja: '現在、利用可能な銀行商品はありません' },
+  'products.sort.name': { en: 'Name', ja: '名称' },
+  'products.sort.rate': { en: 'Interest Rate', ja: '金利' },
+  'products.sort.amount': { en: 'Min Amount', ja: '最小金額' },
+  'products.sort.tenure': { en: 'Tenure', ja: '期間' },
+  'products.investmentRange': { en: 'Investment Range', ja: '投資範囲' },
+  'products.confirm.delete': { en: 'Are you sure you want to delete this product?', ja: 'この商品を削除してもよろしいですか？' },
+  'products.toast.deleted': { en: 'Product deleted successfully', ja: '商品を削除しました' },
+  'products.toast.deleteFailed': { en: 'Failed to delete product', ja: '商品の削除に失敗しました' },
+  'products.toast.loadFailed': { en: 'Failed to load products', ja: '商品の読み込みに失敗しました' },
   'dashboard.title': { en: 'Dashboard', ja: 'ダッシュボード' },
   'dashboard.greeting.morning': { en: 'Good morning', ja: 'おはようございます' },
   'dashboard.greeting.afternoon': { en: 'Good afternoon', ja: 'こんにちは' },
@@ -138,6 +177,10 @@ const dict: Dict = {
   'common.category': { en: 'Category', ja: 'カテゴリ' },
   'common.allCategories': { en: 'All Categories', ja: 'すべてのカテゴリ' },
   'common.sortBy': { en: 'Sort by', ja: '並び替え' },
+  'common.year': { en: 'year', ja: '年' },
+  'common.years': { en: 'years', ja: '年' },
+  'common.months': { en: 'months', ja: 'ヶ月' },
+  'common.to': { en: 'to', ja: '〜' },
   'calculator.interestRate': { en: 'Interest Rate', ja: '金利' },
   'auth.login.title': { en: 'Sign in', ja: 'ログイン' },
   'auth.login.username': { en: 'Username', ja: 'ユーザー名' },
@@ -219,11 +262,23 @@ const I18nContext = createContext<I18nContextType | undefined>(undefined)
 
 export function I18nProvider({ children }: { children: ReactNode }) {
   const [lang, setLang] = useState<Lang>('en')
+  const missing = useMemo(() => new Set<string>(), [])
 
   const t = (key: string) => {
     const item = dict[key]
-    if (!item) return key
-    return item[lang] ?? item.en
+    if (!item) {
+      if (!missing.has(`${key}.missing`)) {
+        missing.add(`${key}.missing`)
+        console.warn(`[i18n] Missing key: ${key}`)
+      }
+      return key
+    }
+    const value = item[lang] ?? item.en
+    if (item[lang] == null && !missing.has(`${key}.${lang}`)) {
+      missing.add(`${key}.${lang}`)
+      console.warn(`[i18n] Missing locale for key: ${key}.${lang}`)
+    }
+    return value
   }
 
   const value = useMemo(() => ({ lang, setLang, t }), [lang])

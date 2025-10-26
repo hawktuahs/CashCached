@@ -5,6 +5,7 @@ import com.bt.accounts.dto.*;
 import com.bt.accounts.entity.FdAccount;
 import com.bt.accounts.exception.*;
 import com.bt.accounts.repository.FdAccountRepository;
+import com.bt.accounts.repository.AccountTransactionRepository;
 import feign.FeignException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -26,6 +27,7 @@ import java.util.stream.Collectors;
 public class AccountService {
 
     private final FdAccountRepository accountRepository;
+    private final AccountTransactionRepository transactionRepository;
     private final CustomerServiceClient customerServiceClient;
     private final ProductServiceClient productServiceClient;
     private final FdCalculatorServiceClient fdCalculatorServiceClient;
@@ -49,7 +51,7 @@ public class AccountService {
 
         FdAccount account = FdAccount.builder()
                 .accountNo(accountNo)
-                .customerId(String.valueOf(customer.getId()))
+                .customerId(request.getCustomerId())
                 .productCode(request.getProductCode())
                 .principalAmount(request.getPrincipalAmount())
                 .interestRate(request.getInterestRate())
@@ -71,14 +73,68 @@ public class AccountService {
     public AccountResponse getAccount(String accountNo) {
         FdAccount account = accountRepository.findByAccountNo(accountNo)
                 .orElseThrow(() -> new AccountNotFoundException("Account not found: " + accountNo));
-        return AccountResponse.fromEntity(account);
+        AccountResponse resp = AccountResponse.fromEntity(account);
+        resp.setCurrentBalance(computeCurrentBalance(accountNo));
+        return resp;
+    }
+
+    @Transactional
+    public AccountResponse upgradeAccount(String accountNo, Map<String, Object> request, String authToken) {
+        validateUserRole();
+
+        FdAccount account = accountRepository.findByAccountNo(accountNo)
+                .orElseThrow(() -> new AccountNotFoundException("Account not found: " + accountNo));
+
+        if (account.getStatus() == FdAccount.AccountStatus.CLOSED) {
+            throw new InvalidAccountDataException("Cannot upgrade a closed account: " + accountNo);
+        }
+
+        String newProductCode = request.get("productCode") != null ? String.valueOf(request.get("productCode")) : account.getProductCode();
+        BigDecimal newInterestRate = request.get("interestRate") != null ? new BigDecimal(String.valueOf(request.get("interestRate"))) : account.getInterestRate();
+        Integer newTenureMonths = request.get("tenureMonths") != null ? Integer.valueOf(String.valueOf(request.get("tenureMonths"))) : account.getTenureMonths();
+        BigDecimal newPrincipal = account.getPrincipalAmount();
+        if (request.get("principalAmount") != null) {
+            newPrincipal = new BigDecimal(String.valueOf(request.get("principalAmount")));
+        }
+
+        ProductDto product = validateProduct(newProductCode, authToken);
+
+        AccountCreationRequest temp = AccountCreationRequest.builder()
+                .customerId(account.getCustomerId())
+                .productCode(newProductCode)
+                .principalAmount(newPrincipal)
+                .interestRate(newInterestRate)
+                .tenureMonths(newTenureMonths)
+                .branchCode(account.getBranchCode())
+                .build();
+
+        validateProductRules(temp, product);
+
+        FdCalculationDto calc = calculateMaturity(temp, authToken);
+
+        account.setProductCode(newProductCode);
+        account.setInterestRate(newInterestRate);
+        account.setTenureMonths(newTenureMonths);
+        account.setPrincipalAmount(newPrincipal);
+        account.setMaturityAmount(calc.getMaturityAmount());
+        account.setMaturityDate(LocalDateTime.now().plusMonths(newTenureMonths));
+
+        FdAccount saved = accountRepository.save(account);
+        AccountResponse resp = AccountResponse.fromEntity(saved);
+        resp.setCurrentBalance(computeCurrentBalance(accountNo));
+        log.info("Upgraded FD account: {} by user: {}", accountNo, getCurrentUsername());
+        return resp;
     }
 
     @Transactional(readOnly = true)
     public List<AccountResponse> getCustomerAccounts(String customerId) {
         List<FdAccount> accounts = accountRepository.findAllByCustomerIdOrderByCreatedAtDesc(customerId);
         return accounts.stream()
-                .map(AccountResponse::fromEntity)
+                .map(a -> {
+                    AccountResponse r = AccountResponse.fromEntity(a);
+                    r.setCurrentBalance(computeCurrentBalance(a.getAccountNo()));
+                    return r;
+                })
                 .collect(Collectors.toList());
     }
 
@@ -102,6 +158,29 @@ public class AccountService {
         log.info("Closed FD account: {} by user: {}", accountNo, getCurrentUsername());
 
         return AccountResponse.fromEntity(savedAccount);
+    }
+
+    @Transactional
+    public AccountResponse reopenAccount(String accountNo) {
+        validateUserRole();
+
+        FdAccount account = accountRepository.findByAccountNo(accountNo)
+                .orElseThrow(() -> new AccountNotFoundException("Account not found: " + accountNo));
+
+        if (account.getStatus() != FdAccount.AccountStatus.CLOSED) {
+            throw new InvalidAccountDataException("Account is not closed: " + accountNo);
+        }
+
+        account.setStatus(FdAccount.AccountStatus.ACTIVE);
+        account.setClosedAt(null);
+        account.setClosedBy(null);
+        account.setClosureReason(null);
+
+        FdAccount saved = accountRepository.save(account);
+        AccountResponse resp = AccountResponse.fromEntity(saved);
+        resp.setCurrentBalance(computeCurrentBalance(accountNo));
+        log.info("Reopened FD account: {} by user: {}", accountNo, getCurrentUsername());
+        return resp;
     }
 
     private void validateUserRole() {
@@ -205,5 +284,15 @@ public class AccountService {
     private String getCurrentUsername() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         return authentication != null ? authentication.getName() : "system";
+    }
+
+    private java.math.BigDecimal computeCurrentBalance(String accountNo) {
+        List<com.bt.accounts.entity.AccountTransaction> txns = transactionRepository.findByAccountNoOrderByTransactionDateDesc(accountNo);
+        if (txns == null || txns.isEmpty()) {
+            FdAccount account = accountRepository.findByAccountNo(accountNo).orElseThrow();
+            java.math.BigDecimal pa = account.getPrincipalAmount();
+            return pa != null ? pa : java.math.BigDecimal.ZERO;
+        }
+        return txns.get(0).getBalanceAfter();
     }
 }

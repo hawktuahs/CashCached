@@ -46,9 +46,7 @@ public class FdCalculationService {
         ProductResponse product = fetchProductDetails(request.getProductCode(), authToken);
         validateCalculationRequest(request, product);
 
-        Integer compoundingFrequency = request.getCompoundingFrequency() != null
-                ? request.getCompoundingFrequency()
-                : defaultCompoundingFrequency;
+        Integer compoundingFrequency = resolveCompoundingFrequency(request, product);
 
         BigDecimal interestRate = determineApplicableInterestRate(product, request);
         BigDecimal maturityAmount = calculateMaturityAmount(
@@ -198,21 +196,51 @@ public class FdCalculationService {
             Integer tenureMonths, Integer compoundingFrequency) {
         double p = principal.doubleValue();
         double r = annualRate.divide(BigDecimal.valueOf(100), 10, RoundingMode.HALF_UP).doubleValue();
-        double n = compoundingFrequency.doubleValue();
         double t = tenureMonths.doubleValue() / 12.0;
 
-        double maturity = p * Math.pow(1 + (r / n), n * t);
+        if (compoundingFrequency != null && compoundingFrequency == 0) {
+            double maturitySimple = p * (1 + (r * t));
+            return BigDecimal.valueOf(maturitySimple).setScale(roundingScale, RoundingMode.HALF_UP);
+        }
 
+        double n = compoundingFrequency != null ? compoundingFrequency.doubleValue() : 1.0;
+        double maturity = p * Math.pow(1 + (r / n), n * t);
         return BigDecimal.valueOf(maturity).setScale(roundingScale, RoundingMode.HALF_UP);
     }
 
     private BigDecimal calculateEffectiveRate(BigDecimal nominalRate, Integer compoundingFrequency) {
         double r = nominalRate.divide(BigDecimal.valueOf(100), 10, RoundingMode.HALF_UP).doubleValue();
-        double n = compoundingFrequency.doubleValue();
-
+        if (compoundingFrequency != null && compoundingFrequency == 0) {
+            double eff = r * 100.0;
+            return BigDecimal.valueOf(eff).setScale(roundingScale, RoundingMode.HALF_UP);
+        }
+        double n = compoundingFrequency != null ? compoundingFrequency.doubleValue() : 1.0;
         double effectiveRate = (Math.pow(1 + (r / n), n) - 1) * 100;
-
         return BigDecimal.valueOf(effectiveRate).setScale(roundingScale, RoundingMode.HALF_UP);
+    }
+
+    private Integer resolveCompoundingFrequency(FdCalculationRequest request, ProductResponse product) {
+        if (request.getCompoundingFrequency() != null) return request.getCompoundingFrequency();
+        if (product != null && product.getCompoundingFrequency() != null) {
+            String f = product.getCompoundingFrequency().toUpperCase();
+            switch (f) {
+                case "DAILY":
+                    return 365;
+                case "MONTHLY":
+                    return 12;
+                case "QUARTERLY":
+                    return 4;
+                case "SEMI_ANNUAL":
+                    return 2;
+                case "ANNUAL":
+                    return 1;
+                case "SIMPLE":
+                    return 0;
+                default:
+                    break;
+            }
+        }
+        return defaultCompoundingFrequency;
     }
 
     private FdCalculationResponse buildCalculationResponse(FdCalculation calculation, String productName) {

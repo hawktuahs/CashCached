@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -17,10 +17,10 @@ import {
   TrendingUp, 
   DollarSign, 
   Info,
+  AlertTriangle,
   RefreshCw
 } from 'lucide-react'
 import { api } from '@/lib/api'
-import { useAuth } from '@/context/AuthContext'
 
 const calculatorSchema = z.object({
   productCode: z.string().min(3, 'Product code is required'),
@@ -38,6 +38,7 @@ interface CalculationResult {
   effectiveRate: number
   tenure: number
   compoundingFrequency: string
+  interestRate: number
 }
 
 const interestRates = [
@@ -49,13 +50,15 @@ const interestRates = [
 ]
 
 export function FdCalculator() {
-  const { user } = useAuth()
   const { t } = useI18n()
   const [result, setResult] = useState<CalculationResult | null>(null)
   const [isCalculating, setIsCalculating] = useState(false)
-  const [products, setProducts] = useState<Array<{ code: string; name: string }>>([])
+  const [products, setProducts] = useState<Array<{ code: string; name: string; compoundingFrequency?: string; minTermMonths?: number; maxTermMonths?: number; minAmount?: number; maxAmount?: number }>>([])
   const [isLoadingProducts, setIsLoadingProducts] = useState(false)
   const [customerId, setCustomerId] = useState<number | null>(null)
+  const [errorReason, setErrorReason] = useState<string | null>(null)
+  const [notes, setNotes] = useState<string[]>([])
+  const [lockedCompLabel, setLockedCompLabel] = useState<string>('yearly')
 
   const form = useForm<CalculatorFormData>({
     resolver: zodResolver(calculatorSchema),
@@ -74,10 +77,16 @@ export function FdCalculator() {
       setIsLoadingProducts(true)
       try {
         const res = await api.get('/api/v1/product')
-        const items = Array.isArray(res.data) ? res.data : []
+        const root = res?.data
+        const items = Array.isArray(root?.data) ? root.data : (Array.isArray(root) ? root : [])
         const mapped = items.map((p: any) => ({
           code: String(p.productCode ?? ''),
-          name: String(p.productName ?? p.productCode ?? '')
+          name: String(p.productName ?? p.productCode ?? ''),
+          compoundingFrequency: String(p.compoundingFrequency || ''),
+          minTermMonths: typeof p.minTermMonths === 'number' ? p.minTermMonths : undefined,
+          maxTermMonths: typeof p.maxTermMonths === 'number' ? p.maxTermMonths : undefined,
+          minAmount: typeof p.minAmount === 'number' ? p.minAmount : undefined,
+          maxAmount: typeof p.maxAmount === 'number' ? p.maxAmount : undefined,
         }))
         setProducts(mapped)
         const current = form.getValues('productCode')
@@ -104,34 +113,41 @@ export function FdCalculator() {
 
   const calculateFD = async (data: CalculatorFormData) => {
     setIsCalculating(true)
+    setErrorReason(null)
     try {
-      const freq = data.compoundingFrequency === 'monthly' ? 12 : data.compoundingFrequency === 'quarterly' ? 4 : 1
       const sanitizedCode = data.productCode.replace(/_/g, '-')
       const codeValid = /^[A-Z0-9-]{3,20}$/.test(sanitizedCode)
       if (!codeValid) {
-        toast.error('Selected product code is not compatible with calculator. Please choose a product with a hyphenated code (A-Z, 0-9, - only, max 20 chars).')
+        toast.error(t('calculator.error.productCodeInvalid'))
         return
       }
-      const payload = {
+      const payload: any = {
         customerId: customerId ?? 0,
         productCode: sanitizedCode,
         principalAmount: data.principal,
         tenureMonths: Math.max(1, Math.round(data.tenure * 12)),
-        compoundingFrequency: freq,
       }
+      // omit compoundingFrequency so backend uses product's default
       const response = await api.post('/api/fd/calculate', payload)
-      const r = response.data as any
+      const r = (response?.data?.data ?? response?.data) as any
+      const cf = r?.compoundingFrequency
+      const cfLabel = typeof cf === 'number'
+        ? (cf === 12 ? 'monthly' : cf === 4 ? 'quarterly' : cf === 2 ? 'semi-annual' : cf === 1 ? 'yearly' : cf === 0 ? 'simple' : `${cf}/year`)
+        : String(cf ?? data.compoundingFrequency)
       const mapped: CalculationResult = {
         principal: Number(r.principalAmount ?? r.principal ?? data.principal),
         interestEarned: Number(r.interestEarned ?? 0),
         maturityAmount: Number(r.maturityAmount ?? 0),
         effectiveRate: Number(r.effectiveRate ?? 0),
         tenure: Number(r.tenureMonths ? Math.round(r.tenureMonths / 12) : data.tenure),
-        compoundingFrequency: String(r.compoundingFrequency ?? data.compoundingFrequency),
+        compoundingFrequency: cfLabel,
+        interestRate: Number(r.interestRate ?? 0),
       }
       setResult(mapped)
     } catch (error) {
-      toast.error('Failed to calculate FD returns')
+      const msg = (error as any)?.response?.data?.message || t('calculator.error.calcFailed')
+      setErrorReason(String(msg))
+      toast.error(String(msg))
     } finally {
       setIsCalculating(false)
     }
@@ -146,7 +162,7 @@ export function FdCalculator() {
     form.setValue('tenure', tenure)
     form.setValue('compoundingFrequency', 'yearly')
     const current = form.getValues()
-    if (!current.productCode) return toast.error('Please enter a product code first')
+    if (!current.productCode) return toast.error(t('calculator.error.enterProductFirst'))
     calculateFD({ productCode: current.productCode, principal, tenure, compoundingFrequency: 'yearly' })
   }
 
@@ -158,18 +174,52 @@ export function FdCalculator() {
     }).format(amount)
   }
 
+  const productCode = form.watch('productCode')
+  const principalVal = form.watch('principal')
+  const tenureYearsVal = form.watch('tenure')
+  const freqVal = form.watch('compoundingFrequency')
+
+  const selectedProduct = useMemo(() => products.find(p => p.code === productCode), [products, productCode])
+
+  useEffect(() => {
+    if (!selectedProduct) return
+    const f = (selectedProduct.compoundingFrequency || '').toUpperCase()
+    const label = f === 'MONTHLY' ? 'monthly' : f === 'QUARTERLY' ? 'quarterly' : 'yearly'
+    setLockedCompLabel(label)
+    form.setValue('compoundingFrequency', label)
+  }, [selectedProduct, form])
+
+  useEffect(() => {
+    const ns: string[] = []
+    const months = Math.max(1, Math.round((tenureYearsVal || 0) * 12))
+    if (selectedProduct?.minTermMonths != null && selectedProduct?.maxTermMonths != null) {
+      if (months < selectedProduct.minTermMonths || months > selectedProduct.maxTermMonths) {
+        ns.push(`${t('calculator.validation.tenure')}: ${selectedProduct.minTermMonths} ${t('common.months')} ${t('common.to')} ${selectedProduct.maxTermMonths} ${t('common.months')}`)
+      }
+    }
+    if (selectedProduct?.minAmount != null && selectedProduct?.maxAmount != null) {
+      if ((principalVal || 0) < selectedProduct.minAmount || (principalVal || 0) > selectedProduct.maxAmount) {
+        ns.push(`${t('calculator.validation.amount')}: ${formatCurrency(selectedProduct.minAmount)} ${t('common.to')} ${formatCurrency(selectedProduct.maxAmount)}`)
+      }
+    }
+    if (freqVal !== 'yearly') {
+      ns.push(t('calculator.validation.freq'))
+    }
+    setNotes(ns)
+  }, [selectedProduct, principalVal, tenureYearsVal, freqVal, t])
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">FD Calculator</h1>
+          <h1 className="text-3xl font-bold tracking-tight">{t('calculator.title')}</h1>
           <p className="text-muted-foreground">
-            Calculate your fixed deposit returns and plan your investments
+            {t('calculator.subtitle')}
           </p>
         </div>
         <Badge variant="outline" className="flex items-center gap-2">
           <Calculator className="h-4 w-4" />
-          Investment Calculator
+          {t('calculator.badge')}
         </Badge>
       </div>
 
@@ -179,10 +229,10 @@ export function FdCalculator() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Calculator className="h-5 w-5" />
-                Calculate FD Returns
+                {t('calculator.calculateHeadline')}
               </CardTitle>
               <CardDescription>
-                Enter your investment details to calculate returns
+                {t('calculator.enterFdDetails')}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -197,7 +247,7 @@ export function FdCalculator() {
                         <Select value={field.value} onValueChange={field.onChange} disabled={isLoadingProducts}>
                           <FormControl>
                             <SelectTrigger>
-                              <SelectValue placeholder={isLoadingProducts ? 'Loading products...' : 'Select a product'} />
+                              <SelectValue placeholder={isLoadingProducts ? t('calculator.loadingProducts') : t('calculator.selectProduct')} />
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
@@ -255,7 +305,7 @@ export function FdCalculator() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>{t('calculator.compounding')}</FormLabel>
-                        <Select value={field.value} onValueChange={field.onChange}>
+                        <Select value={field.value} onValueChange={field.onChange} disabled>
                           <FormControl>
                             <SelectTrigger>
                               <SelectValue />
@@ -271,6 +321,7 @@ export function FdCalculator() {
                       </FormItem>
                     )}
                   />
+                  <div className="text-xs text-muted-foreground">{t('calculator.compounding')} locked to product: {selectedProduct?.compoundingFrequency || lockedCompLabel}</div>
 
                   <Button type="submit" disabled={isCalculating}>
                     {isCalculating ? (
@@ -308,7 +359,7 @@ export function FdCalculator() {
                   onClick={() => handleQuickCalculate(100000, parseInt(rate.tenure), rate.rate)}
                 >
                   <div>
-                    <p className="font-medium">{formatCurrency(100000)} • {rate.tenure}</p>
+                    <p className="font-medium">{formatCurrency(100000)} • {parseInt(rate.tenure)} {parseInt(rate.tenure) === 1 ? t('common.year') : t('common.years')}</p>
                     <p className="text-sm text-muted-foreground">
                       {t('calculator.interestRate')}: {rate.rate}%
                     </p>
@@ -364,6 +415,11 @@ export function FdCalculator() {
                   </div>
                 </div>
 
+                <div className="space-y-2">
+                  <p className="text-sm text-muted-foreground">{t('calculator.interestRate')} ({t('calculator.nominal')})</p>
+                  <p className="text-lg font-semibold">{result.interestRate.toFixed(2)}%</p>
+                </div>
+
                 <div className="pt-4">
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <Info className="h-4 w-4" />
@@ -374,7 +430,7 @@ export function FdCalculator() {
                 </div>
               </CardContent>
             </Card>
-          ) : (
+            ) : (
             <Card>
               <CardHeader>
                 <CardTitle>{t('calculator.results')}</CardTitle>
@@ -394,30 +450,74 @@ export function FdCalculator() {
             </Card>
           )}
 
+          {result && notes.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Info className="h-5 w-5" />
+                  {t('calculator.validation.notes')}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ul className="list-disc pl-5 space-y-1">
+                  {notes.map((n, i) => (
+                    <li key={i} className="text-sm text-muted-foreground">{n}</li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          )}
+
+          {!result && (errorReason || notes.length > 0) && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <AlertTriangle className="h-5 w-5 text-red-500" />
+                  {t('calculator.validation.reason')}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {errorReason && (
+                  <p className="text-sm text-red-600">{errorReason}</p>
+                )}
+                {notes.length > 0 && (
+                  <div>
+                    <div className="text-sm font-medium mb-1">{t('calculator.validation.notes')}</div>
+                    <ul className="list-disc pl-5 space-y-1">
+                      {notes.map((n, i) => (
+                        <li key={i} className="text-sm text-muted-foreground">{n}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Info className="h-5 w-5" />
-                FD Calculator Tips
+                {t('calculator.tips.title')}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="space-y-2">
-                <h4 className="font-medium">Higher Tenure = Better Returns</h4>
+                <h4 className="font-medium">{t('calculator.tips.higherTenure.title')}</h4>
                 <p className="text-sm text-muted-foreground">
-                  Longer-term FDs typically offer higher interest rates.
+                  {t('calculator.tips.higherTenure.desc')}
                 </p>
               </div>
               <div className="space-y-2">
-                <h4 className="font-medium">Compounding Frequency</h4>
+                <h4 className="font-medium">{t('calculator.tips.compounding.title')}</h4>
                 <p className="text-sm text-muted-foreground">
-                  More frequent compounding (monthly/quarterly) yields better returns.
+                  {t('calculator.tips.compounding.desc')}
                 </p>
               </div>
               <div className="space-y-2">
-                <h4 className="font-medium">Tax Implications</h4>
+                <h4 className="font-medium">{t('calculator.tips.tax.title')}</h4>
                 <p className="text-sm text-muted-foreground">
-                  FD interest is taxable as per your income tax slab.
+                  {t('calculator.tips.tax.desc')}
                 </p>
               </div>
             </CardContent>

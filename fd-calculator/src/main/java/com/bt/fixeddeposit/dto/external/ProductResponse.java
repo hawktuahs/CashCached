@@ -29,6 +29,7 @@ public class ProductResponse {
     private LocalDate expiryDate;
     private String regulatoryCode;
     private Boolean requiresApproval;
+    private String compoundingFrequency;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

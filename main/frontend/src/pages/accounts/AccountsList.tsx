@@ -106,7 +106,7 @@ export function AccountsList() {
         id: String(a.id ?? ''),
         accountNumber: String(a.accountNo ?? a.accountNumber ?? ''),
         accountType: 'FIXED_DEPOSIT',
-        balance: Number(a.maturityAmount ?? 0),
+        balance: Number(a.currentBalance ?? a.balance ?? a.maturityAmount ?? 0),
         interestRate: Number(a.interestRate ?? 0),
         maturityDate: String(a.maturityDate ?? new Date().toISOString()),
         status: String(a.status ?? 'ACTIVE') as any,

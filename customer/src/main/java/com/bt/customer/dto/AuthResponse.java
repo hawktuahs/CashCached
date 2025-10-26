@@ -26,11 +26,14 @@ public class AuthResponse {
     @Schema(description = "Response message", example = "Authentication successful")
     private String message;
 
+    private Boolean twoFactorRequired;
+
     public AuthResponse(String token, String username, String role, String message) {
         this.token = token;
         this.tokenType = "Bearer";
         this.username = username;
         this.role = role;
         this.message = message;
+        this.twoFactorRequired = false;
     }
 }

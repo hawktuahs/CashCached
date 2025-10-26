@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/customer")
@@ -86,5 +87,35 @@ public class CustomerController {
                 .build();
 
         return ResponseEntity.ok(status);
+    }
+
+    @GetMapping("/security/2fa")
+    @Operation(summary = "Get 2FA status", description = "Returns whether two-factor authentication is enabled for the current user")
+    public ResponseEntity<Map<String, Object>> getTwoFactorStatus() {
+        boolean enabled = customerService.isTwoFactorEnabledForCurrentUser();
+        return ResponseEntity.ok(Map.of("enabled", enabled));
+    }
+
+    @PutMapping("/security/2fa/enable")
+    @Operation(summary = "Enable 2FA", description = "Enables two-factor authentication for the current user")
+    public ResponseEntity<Map<String, Object>> enableTwoFactor() {
+        customerService.enableTwoFactorForCurrentUser();
+        return ResponseEntity.ok(Map.of("enabled", true));
+    }
+
+    @PutMapping("/security/2fa/disable")
+    @Operation(summary = "Disable 2FA", description = "Disables two-factor authentication for the current user")
+    public ResponseEntity<Map<String, Object>> disableTwoFactor() {
+        customerService.disableTwoFactorForCurrentUser();
+        return ResponseEntity.ok(Map.of("enabled", false));
+    }
+
+    @PostMapping("/password/change")
+    @Operation(summary = "Change password", description = "Changes the current user's password")
+    public ResponseEntity<Map<String, Object>> changePassword(@RequestBody Map<String, String> body) {
+        String currentPassword = String.valueOf(body.getOrDefault("currentPassword", ""));
+        String newPassword = String.valueOf(body.getOrDefault("newPassword", ""));
+        customerService.changePassword(currentPassword, newPassword);
+        return ResponseEntity.ok(Map.of("success", true));
     }
 }

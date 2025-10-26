@@ -35,6 +35,7 @@ public class ProxyController {
             "/api/auth/**",
             "/api/customer/**",
             "/api/v1/product/**",
+            "/api/v1/pricing-rule/**",
             "/api/fd/**",
             "/api/accounts/**"
     }, method = { RequestMethod.GET, RequestMethod.POST, RequestMethod.PUT, RequestMethod.DELETE })
@@ -92,7 +93,7 @@ public class ProxyController {
     private String resolveBaseUrl(String path) {
         if (path.startsWith("/api/auth") || path.startsWith("/api/customer"))
             return customerBase;
-        if (path.startsWith("/api/v1/product"))
+        if (path.startsWith("/api/v1/product") || path.startsWith("/api/v1/pricing-rule"))
             return productBase;
         if (path.startsWith("/api/fd"))
             return fdBase;

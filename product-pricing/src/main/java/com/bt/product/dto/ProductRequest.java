@@ -64,4 +64,7 @@ public class ProductRequest {
     private String regulatoryCode;
 
     private Boolean requiresApproval;
+
+    @Size(max = 20, message = "Compounding frequency must not exceed 20 characters")
+    private String compoundingFrequency;
 }

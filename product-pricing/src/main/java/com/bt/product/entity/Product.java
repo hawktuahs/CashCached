@@ -74,6 +74,9 @@ public class Product {
     @Column(name = "requires_approval")
     private Boolean requiresApproval;
 
+    @Column(name = "compounding_frequency", length = 20)
+    private String compoundingFrequency;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 

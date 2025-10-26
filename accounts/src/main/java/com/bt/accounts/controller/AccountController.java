@@ -12,6 +12,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import java.util.Map;
 import java.util.List;
 
 @RestController
@@ -85,6 +86,42 @@ public class AccountController {
         ApiResponse<AccountResponse> response = ApiResponse.<AccountResponse>builder()
                 .success(true)
                 .message("Account closed successfully")
+                .data(account)
+                .build();
+
+        return ResponseEntity.ok(response);
+    }
+
+    @PutMapping("/{accountNo}/reopen")
+    @PreAuthorize("hasAnyRole('BANKOFFICER', 'ADMIN')")
+    @Operation(summary = "Reopen FD account", description = "Reopens a previously closed Fixed Deposit account")
+    public ResponseEntity<ApiResponse<AccountResponse>> reopenAccount(
+            @Parameter(description = "FD Account number") @PathVariable String accountNo) {
+
+        AccountResponse account = accountService.reopenAccount(accountNo);
+
+        ApiResponse<AccountResponse> response = ApiResponse.<AccountResponse>builder()
+                .success(true)
+                .message("Account reopened successfully")
+                .data(account)
+                .build();
+
+        return ResponseEntity.ok(response);
+    }
+
+    @PutMapping("/{accountNo}/upgrade")
+    @PreAuthorize("hasAnyRole('BANKOFFICER', 'ADMIN')")
+    @Operation(summary = "Upgrade FD account", description = "Upgrades an existing FD account to a new product configuration")
+    public ResponseEntity<ApiResponse<AccountResponse>> upgradeAccount(
+            @Parameter(description = "FD Account number") @PathVariable String accountNo,
+            @RequestBody Map<String, Object> request,
+            @Parameter(hidden = true) @RequestHeader("Authorization") String authToken) {
+
+        AccountResponse account = accountService.upgradeAccount(accountNo, request, authToken);
+
+        ApiResponse<AccountResponse> response = ApiResponse.<AccountResponse>builder()
+                .success(true)
+                .message("Account upgraded successfully")
                 .data(account)
                 .build();
 

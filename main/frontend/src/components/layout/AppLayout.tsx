@@ -15,7 +15,6 @@ import {
 } from '@/components/ui/sidebar'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import { 
   DropdownMenu, 
   DropdownMenuContent, 
@@ -83,23 +82,7 @@ function AppSidebar() {
   const isStaff = user?.role === 'ADMIN' || user?.role === 'BANKOFFICER'
   const { t, lang, setLang } = useI18n()
 
-  const getRoleBadgeVariant = (role: string) => {
-    switch (role) {
-      case 'ADMIN':
-        return 'destructive'
-      case 'BANKOFFICER':
-        return 'default'
-      case 'CUSTOMER':
-        return 'secondary'
-      default:
-        return 'outline'
-    }
-  }
-
-  const getRoleLabel = (role: string) => {
-    if (role === 'BANKOFFICER') return 'BANK OFFICER'
-    return role
-  }
+  
 
   return (
     <Sidebar>
@@ -130,8 +113,8 @@ function AppSidebar() {
                       isActive={location.pathname === item.url}
                       className="w-full justify-start"
                     >
-                      <item.icon className="h-4 w-4" />
-                      <span>
+                      <item.icon className="h-4 w-4 shrink-0" />
+                      <span className="truncate max-w-[160px]">
                         {item.title === 'Dashboard' ? t('nav.dashboard') :
                          item.title === 'My Profile' ? t('nav.profile') :
                          item.title === 'Products & Pricing' ? t('nav.products') :
@@ -167,48 +150,47 @@ function AppSidebar() {
       </SidebarContent>
       
       <SidebarFooter className="border-t border-sidebar-border p-4">
-        <div className="flex items-center gap-3">
-          <Avatar className="h-8 w-8">
-            <AvatarImage src="" alt={user?.firstName} />
-            <AvatarFallback>
-              {user?.firstName?.[0]}{user?.lastName?.[0]}
-            </AvatarFallback>
-          </Avatar>
-          <div className="flex flex-1 flex-col gap-1">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium">
-                {user?.firstName} {user?.lastName}
-              </span>
-              <Badge variant={getRoleBadgeVariant(user?.role || '')} className="text-xs">
-                {getRoleLabel(user?.role || '')}
-              </Badge>
+        <div className="flex items-center gap-3 min-w-0 flex-nowrap justify-between w-full overflow-hidden">
+          <div className="flex items-center gap-3 min-w-0">
+            <Avatar className="h-8 w-8">
+              <AvatarImage src="" alt={user?.firstName} />
+              <AvatarFallback>
+                {user?.firstName?.[0]}{user?.lastName?.[0]}
+              </AvatarFallback>
+            </Avatar>
+            <div className="flex flex-1 flex-col gap-1 min-w-0 pr-20">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="text-sm font-medium truncate max-w-[110px]" title={`${user?.firstName || ''} ${user?.lastName || ''}`}>
+                  {user?.firstName} {user?.lastName}
+                </span>
+              </div>
+              <span className="text-xs text-muted-foreground truncate max-w-[200px] hidden lg:block" title={user?.email || ''}>{user?.email}</span>
             </div>
-            <span className="text-xs text-muted-foreground">{user?.email}</span>
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 shrink-0 whitespace-nowrap">
             <Button variant={lang === 'en' ? 'default' : 'outline'} size="sm" onClick={() => setLang('en')}>EN</Button>
             <Button variant={lang === 'ja' ? 'default' : 'outline'} size="sm" onClick={() => setLang('ja')}>日本語</Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="shrink-0">
+                  <Settings className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel>My Account</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => navigate('/profile')}>
+                  <User className="mr-2 h-4 w-4" />
+                  {t('nav.profile')}
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={logout}>
+                  <LogOut className="mr-2 h-4 w-4" />
+                  {t('action.logout')}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm">
-                <Settings className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuLabel>My Account</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => navigate('/profile')}>
-                <User className="mr-2 h-4 w-4" />
-                {t('nav.profile')}
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={logout}>
-                <LogOut className="mr-2 h-4 w-4" />
-                {t('action.logout')}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
         </div>
       </SidebarFooter>
     </Sidebar>

@@ -25,13 +25,17 @@ import { api } from '@/lib/api'
 const productSchema = z.object({
   name: z.string().min(2, 'Product name must be at least 2 characters'),
   description: z.string().min(10, 'Description must be at least 10 characters'),
-  interestRate: z.number().min(0.1, 'Interest rate must be at least 0.1%'),
+  minInterestRate: z.number().min(0, 'Minimum rate must be ≥ 0'),
+  maxInterestRate: z.number().min(0, 'Maximum rate must be ≥ 0'),
+  minTermMonths: z.number().min(1, 'Minimum tenure must be at least 1 month'),
+  maxTermMonths: z.number().min(1, 'Maximum tenure must be at least 1 month'),
   minAmount: z.number().min(1000, 'Minimum amount must be at least ₹1,000'),
   maxAmount: z.number().min(1000, 'Maximum amount must be at least ₹1,000'),
-  tenure: z.number().min(1, 'Tenure must be at least 1 year'),
+  compoundingFrequency: z.string().min(1, 'Select compounding frequency'),
   category: z.string().min(1, 'Please select a category'),
   isActive: z.boolean(),
-})
+}).refine((d) => d.minInterestRate <= d.maxInterestRate, { message: 'Min rate must be ≤ max rate', path: ['maxInterestRate'] })
+  .refine((d) => d.minTermMonths <= d.maxTermMonths, { message: 'Min tenure must be ≤ max tenure', path: ['maxTermMonths'] })
 
 type ProductFormData = z.infer<typeof productSchema>
 
@@ -75,10 +79,13 @@ export function ProductForm() {
     defaultValues: {
       name: '',
       description: '',
-      interestRate: 6.5,
+      minInterestRate: 5,
+      maxInterestRate: 8,
       minAmount: 10000,
       maxAmount: 1000000,
-      tenure: 1,
+      minTermMonths: 6,
+      maxTermMonths: 60,
+      compoundingFrequency: 'ANNUAL',
       category: '',
       isActive: true,
     },
@@ -95,14 +102,17 @@ export function ProductForm() {
       const fetchProduct = async () => {
         try {
           const response = await api.get(`/api/v1/product/${id}`)
-          const product = response.data
+          const product = (response?.data?.data ?? response?.data) as any
           form.reset({
             name: product.productName || '',
             description: product.description || '',
-            interestRate: Number(product.maxInterestRate ?? product.minInterestRate ?? 0),
+            minInterestRate: Number(product.minInterestRate ?? 0),
+            maxInterestRate: Number(product.maxInterestRate ?? 0),
             minAmount: Number(product.minAmount ?? 0),
             maxAmount: Number(product.maxAmount ?? 0),
-            tenure: Math.max(1, Math.round((product.maxTermMonths ?? product.minTermMonths ?? 12) / 12)),
+            minTermMonths: Number(product.minTermMonths ?? 1),
+            maxTermMonths: Number(product.maxTermMonths ?? 1),
+            compoundingFrequency: String(product.compoundingFrequency || 'ANNUAL'),
             category: (product.productType || '').toString().replace('_', ' '),
             isActive: (product.status || 'ACTIVE') === 'ACTIVE',
           })
@@ -128,7 +138,6 @@ export function ProductForm() {
     setIsSaving(true)
     try {
       const now = new Date().toISOString().slice(0, 10)
-      const months = Math.max(1, Math.round(data.tenure * 12))
       const rawBase = data.name.trim().toUpperCase().replace(/\s+/g, '-').replace(/[^A-Z0-9-]/g, '')
       const suffix = Math.random().toString(36).slice(2, 6).toUpperCase()
       const baseLimited = (rawBase || 'FD').slice(0, 15)
@@ -139,13 +148,14 @@ export function ProductForm() {
         productName: data.name,
         productType,
         description: data.description,
-        minInterestRate: data.interestRate,
-        maxInterestRate: data.interestRate,
-        minTermMonths: months,
-        maxTermMonths: months,
+        minInterestRate: data.minInterestRate,
+        maxInterestRate: data.maxInterestRate,
+        minTermMonths: data.minTermMonths,
+        maxTermMonths: data.maxTermMonths,
         minAmount: data.minAmount,
         maxAmount: data.maxAmount,
         currency: 'INR',
+        compoundingFrequency: data.compoundingFrequency,
         status: data.isActive ? 'ACTIVE' : 'INACTIVE',
         effectiveDate: now,
         expiryDate: null,
@@ -301,15 +311,15 @@ export function ProductForm() {
               <div className="grid gap-4 md:grid-cols-3">
                 <FormField
                   control={form.control}
-                  name="interestRate"
+                  name="minInterestRate"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Interest Rate (% p.a.)</FormLabel>
+                      <FormLabel>Min Interest Rate (% p.a.)</FormLabel>
                       <FormControl>
                         <Input
                           type="number"
                           step="0.1"
-                          placeholder="6.5"
+                          placeholder="5.0"
                           {...field}
                           onChange={(e) => field.onChange(Number(e.target.value))}
                           disabled={isSaving}
@@ -322,14 +332,15 @@ export function ProductForm() {
 
                 <FormField
                   control={form.control}
-                  name="tenure"
+                  name="maxInterestRate"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Tenure (Years)</FormLabel>
+                      <FormLabel>Max Interest Rate (% p.a.)</FormLabel>
                       <FormControl>
                         <Input
                           type="number"
-                          placeholder="1"
+                          step="0.1"
+                          placeholder="8.0"
                           {...field}
                           onChange={(e) => field.onChange(Number(e.target.value))}
                           disabled={isSaving}
@@ -358,6 +369,71 @@ export function ProductForm() {
                           disabled={isSaving}
                         />
                       </FormControl>
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <FormField
+                  control={form.control}
+                  name="compoundingFrequency"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Compounding Frequency</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select frequency" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {['ANNUAL','SEMI_ANNUAL','QUARTERLY','MONTHLY','DAILY','SIMPLE'].map(opt => (
+                            <SelectItem key={opt} value={opt}>{opt.replace('_',' ')}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="minTermMonths"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Min Tenure (Months)</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          placeholder="6"
+                          {...field}
+                          onChange={(e) => field.onChange(Number(e.target.value))}
+                          disabled={isSaving}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="maxTermMonths"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Max Tenure (Months)</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          placeholder="60"
+                          {...field}
+                          onChange={(e) => field.onChange(Number(e.target.value))}
+                          disabled={isSaving}
+                        />
+                      </FormControl>
+                      <FormMessage />
                     </FormItem>
                   )}
                 />
