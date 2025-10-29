@@ -58,6 +58,9 @@ public class AccrualScheduler {
                 log.warn("Accrual failed for account {}: {}", a.getAccountNo(), ex.getMessage());
             }
 
+        }
+    }
+
     private PricingRuleEvaluator.EvaluationResult evaluatePricing(FdAccount account, BigDecimal balance) {
         try {
             return pricingRuleEvaluator.evaluate(account, balance, null);
@@ -81,8 +84,6 @@ public class AccrualScheduler {
         boolean nameChanged = !Objects.equals(account.getActivePricingRuleName(), ruleName);
         boolean appliedAtChanged = pricing.getRule() != null ? account.getPricingRuleAppliedAt() == null : account.getPricingRuleAppliedAt() != null;
         return rateChanged || idChanged || nameChanged || appliedAtChanged;
-    }
-        }
     }
 
     private void processAccountAccrual(FdAccount account, LocalDateTime now) {

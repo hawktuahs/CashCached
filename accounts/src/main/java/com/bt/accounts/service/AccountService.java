@@ -224,6 +224,16 @@ public class AccountService {
         }
     }
 
+    private String resolveProductServiceToken(String authToken) {
+        if (authToken != null && !authToken.isBlank()) {
+            return authToken;
+        }
+        if (productServiceToken != null && !productServiceToken.isBlank()) {
+            return productServiceToken;
+        }
+        throw new ServiceIntegrationException("Missing authorization token for Product Service call");
+    }
+
     private CustomerDto validateCustomer(String customerId, String authToken) {
         try {
             ApiResponse<CustomerDto> response = customerServiceClient.getCustomerById(customerId, authToken);

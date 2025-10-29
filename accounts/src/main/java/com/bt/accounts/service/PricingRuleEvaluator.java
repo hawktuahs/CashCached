@@ -12,7 +12,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import lombok.RequiredArgsConstructor;
-import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -113,18 +112,36 @@ public class PricingRuleEvaluator {
         return response.getData();
     }
 
-    @Value
-    public static class EvaluationResult {
-        PricingRuleDto rule;
-        BigDecimal appliedRate;
-        BigDecimal penalty;
+    public static final class EvaluationResult {
+        private final PricingRuleDto rule;
+        private final BigDecimal appliedRate;
+        private final BigDecimal penalty;
+
+        private EvaluationResult(PricingRuleDto rule, BigDecimal appliedRate, BigDecimal penalty) {
+            this.rule = rule;
+            this.appliedRate = appliedRate;
+            this.penalty = penalty;
+        }
+
+        public PricingRuleDto getRule() {
+            return rule;
+        }
+
+        public BigDecimal getAppliedRate() {
+            return appliedRate;
+        }
+
+        public BigDecimal getPenalty() {
+            return penalty;
+        }
 
         public boolean hasRule() {
             return rule != null;
         }
 
         public static EvaluationResult noRule(BigDecimal baseRate) {
-            return new EvaluationResult(null, baseRate != null ? baseRate.setScale(2, RoundingMode.HALF_UP) : null, null);
+            BigDecimal rate = baseRate != null ? baseRate.setScale(2, RoundingMode.HALF_UP) : null;
+            return new EvaluationResult(null, rate, null);
         }
 
         public static EvaluationResult ruleMatched(PricingRuleDto rule, BigDecimal appliedRate, BigDecimal penalty) {

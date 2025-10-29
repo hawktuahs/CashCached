@@ -7,6 +7,7 @@ import com.bt.accounts.entity.AccountTransaction;
 import com.bt.accounts.entity.FdAccount;
 import com.bt.accounts.exception.AccountNotFoundException;
 import com.bt.accounts.exception.InvalidAccountDataException;
+import com.bt.accounts.exception.ServiceIntegrationException;
 import com.bt.accounts.client.CustomerServiceClient;
 import com.bt.accounts.client.ProductServiceClient;
 import com.bt.accounts.client.ProductDto;
@@ -59,7 +60,7 @@ public class TransactionService {
         AccountTransaction.TransactionType type = AccountTransaction.TransactionType.valueOf(request.getTransactionType());
         BigDecimal amountTokens = requireTokenAmount(request.getAmount());
         BigDecimal currentBalance = calculateCurrentBalance(accountNo);
-        PricingRuleEvaluator.EvaluationResult pricing = applyPricingRules(account, currentBalance, request.getAuthToken());
+        PricingRuleEvaluator.EvaluationResult pricing = applyPricingRules(account, currentBalance, null);
         BigDecimal newBalance = calculateNewBalance(currentBalance, type, amountTokens);
 
         reconcileWalletForTransaction(account, type, amountTokens, request.getReferenceNo());
@@ -137,6 +138,7 @@ public class TransactionService {
 
         BigDecimal amountTokens = requireTokenAmount(request.getAmount());
         BigDecimal currentBalance = calculateCurrentBalance(accountNo);
+        PricingRuleEvaluator.EvaluationResult pricing = applyPricingRules(account, currentBalance, authHeader);
         BigDecimal newBalance = calculateNewBalance(currentBalance, type, amountTokens);
         if (newBalance.compareTo(BigDecimal.ZERO) < 0) {
             throw new InvalidAccountDataException("Insufficient balance for withdrawal");
@@ -226,6 +228,46 @@ public class TransactionService {
         };
     }
 
+    private PricingRuleEvaluator.EvaluationResult applyPricingRules(FdAccount account, BigDecimal balance, String authToken) {
+        PricingRuleEvaluator.EvaluationResult result;
+        try {
+            result = pricingRuleEvaluator.evaluate(account, balance, authToken);
+        } catch (ServiceIntegrationException ex) {
+            log.warn("Pricing evaluation failed for account {}: {}", account.getAccountNo(), ex.getMessage());
+            return PricingRuleEvaluator.EvaluationResult.noRule(account.getBaseInterestRate());
+        }
+
+        BigDecimal appliedRate = result.getAppliedRate();
+        boolean hasRule = result.getRule() != null;
+
+        if (appliedRate != null && (account.getInterestRate() == null || account.getInterestRate().compareTo(appliedRate) != 0)) {
+            account.setInterestRate(appliedRate);
+        } else if (!hasRule && account.getBaseInterestRate() != null) {
+            account.setInterestRate(account.getBaseInterestRate());
+        }
+
+        if (hasRule) {
+            account.setActivePricingRuleId(result.getRule().getId());
+            account.setActivePricingRuleName(result.getRule().getRuleName());
+            account.setPricingRuleAppliedAt(LocalDateTime.now());
+        } else {
+            account.setActivePricingRuleId(null);
+            account.setActivePricingRuleName(null);
+            account.setPricingRuleAppliedAt(null);
+        }
+
+        return result;
+    }
+
+    private void applyPenaltyIfNeeded(FdAccount account, BigDecimal penalty, String reference) {
+        if (penalty == null || penalty.compareTo(BigDecimal.ZERO) <= 0) {
+            return;
+        }
+
+        String accountNo = account.getAccountNo();
+        String txnId = generateTransactionId(accountNo);
+
+        AccountTransaction penaltyTxn = AccountTransaction.builder()
                 .transactionId(txnId)
                 .accountNo(accountNo)
                 .transactionType(AccountTransaction.TransactionType.PENALTY_DEBIT)
