@@ -8,6 +8,7 @@ interface User {
   firstName: string
   lastName: string
   role: 'CUSTOMER' | 'BANKOFFICER' | 'ADMIN'
+  preferredCurrency?: string
 }
 
 interface AuthContextType {
@@ -19,6 +20,8 @@ interface AuthContextType {
   isLoading: boolean
   isAuthenticated: boolean
   verifyOtp: (username: string, code: string) => Promise<void>
+  refreshProfile: () => Promise<void>
+  preferredCurrency: string
 }
 
 interface RegisterData {
@@ -40,6 +43,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const isAuthenticated = !!user && !!token
 
+  const hydrateProfile = async () => {
+    try {
+      const response = await api.get('/api/customer/profile')
+      const payload = response?.data || response
+      setUser((current) => {
+        if (!current) {
+          return null
+        }
+        const resolvedId = payload?.id ?? payload?.customerId ?? current.id
+        const fullName = String(payload?.fullName ?? '').trim()
+        const [first, ...rest] = fullName ? fullName.split(' ') : [current.firstName, current.lastName]
+        return {
+          ...current,
+          id: resolvedId ? String(resolvedId) : current.id,
+          email: payload?.email || current.email || '',
+          firstName: first || current.firstName,
+          lastName: rest.length > 0 ? rest.join(' ') : current.lastName,
+          preferredCurrency: payload?.preferredCurrency || current.preferredCurrency || 'KWD',
+        }
+      })
+    } catch {}
+  }
+
   useEffect(() => {
     const initializeAuth = async () => {
       const storedToken = localStorage.getItem('token')
@@ -51,11 +77,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             email: '',
             firstName: '',
             lastName: '',
-            role: decoded.role as 'CUSTOMER' | 'BANKOFFICER' | 'ADMIN'
+            role: decoded.role as 'CUSTOMER' | 'BANKOFFICER' | 'ADMIN',
+            preferredCurrency: 'KWD',
           })
           setToken(storedToken)
           api.defaults.headers.common['Authorization'] = `Bearer ${storedToken}`
           api.defaults.headers.common['X-User-Id'] = decoded.sub
+          await hydrateProfile()
         } catch (error) {
           localStorage.removeItem('token')
           setToken(null)
@@ -82,9 +110,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       email: '',
       firstName: '',
       lastName: '',
-      role: decoded.role as 'CUSTOMER' | 'BANKOFFICER' | 'ADMIN'
+      role: decoded.role as 'CUSTOMER' | 'BANKOFFICER' | 'ADMIN',
+      preferredCurrency: 'KWD',
     })
     api.defaults.headers.common['X-User-Id'] = decoded.sub
+    await hydrateProfile()
   }
 
   const verifyOtp = async (username: string, code: string) => {
@@ -127,7 +157,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         email: userData.email,
         firstName: userData.firstName,
         lastName: userData.lastName,
-        role: decoded.role as 'CUSTOMER' | 'BANKOFFICER' | 'ADMIN'
+        role: decoded.role as 'CUSTOMER' | 'BANKOFFICER' | 'ADMIN',
+        preferredCurrency: 'KWD',
       })
       api.defaults.headers.common['X-User-Id'] = decoded.sub
     } catch (error) {
@@ -151,7 +182,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       logout,
       isLoading,
       isAuthenticated,
-      verifyOtp
+      verifyOtp,
+      refreshProfile: hydrateProfile,
+      preferredCurrency: user?.preferredCurrency || 'KWD',
     }}>
       {children}
     </AuthContext.Provider>

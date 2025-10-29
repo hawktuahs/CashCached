@@ -30,7 +30,10 @@ public class SecurityConfig {
                                 "/swagger-ui.html",
                                 "/actuator/**")
                         .permitAll()
-                        .requestMatchers("/api/accounts/**").authenticated()
+                        .requestMatchers(
+                                "/api/accounts/**",
+                                "/api/financials/stablecoin/**")
+                        .authenticated()
                         .anyRequest().authenticated())
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 

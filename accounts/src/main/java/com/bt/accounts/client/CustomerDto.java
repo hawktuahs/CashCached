@@ -22,4 +22,6 @@ public class CustomerDto {
     private String dateOfBirth;
     private String kycStatus;
     private String accountStatus;
+    private String preferredCurrency;
+    private String fullName;
 }

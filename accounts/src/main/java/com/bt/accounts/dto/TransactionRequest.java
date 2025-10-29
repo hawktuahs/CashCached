@@ -16,7 +16,7 @@ public class TransactionRequest {
     private String transactionType;
 
     @NotNull(message = "Amount is required")
-    @DecimalMin(value = "0.01", message = "Amount must be greater than 0")
+    @DecimalMin(value = "1", message = "Amount must be at least 1 CashCached token")
     private BigDecimal amount;
 
     @Size(max = 500, message = "Description must not exceed 500 characters")

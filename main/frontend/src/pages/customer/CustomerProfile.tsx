@@ -23,6 +23,7 @@ import {
 import { useAuth } from '@/context/AuthContext'
 import { useI18n } from '@/context/I18nContext'
 import { api } from '@/lib/api'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
 const profileSchema = z.object({
   firstName: z.string().min(2, 'First name must be at least 2 characters'),
@@ -31,6 +32,7 @@ const profileSchema = z.object({
   phone: z.string().optional(),
   address: z.string().optional(),
   dateOfBirth: z.string().optional(),
+  preferredCurrency: z.string().min(1, 'Select a currency'),
 })
 
 type ProfileFormData = z.infer<typeof profileSchema>
@@ -46,10 +48,11 @@ interface CustomerProfile {
   role: string
   createdAt: string
   lastLoginAt?: string
+  preferredCurrency?: string
 }
 
 export function CustomerProfile() {
-  const { } = useAuth()
+  const { refreshProfile } = useAuth()
   const { t } = useI18n()
   const [profile, setProfile] = useState<CustomerProfile | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -70,8 +73,11 @@ export function CustomerProfile() {
       phone: '',
       address: '',
       dateOfBirth: '',
+      preferredCurrency: 'KWD',
     },
   })
+
+  const currencyOptions = ['KWD', 'USD', 'INR', 'GBP', 'CAD', 'MXN', 'ZAR']
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -86,6 +92,7 @@ export function CustomerProfile() {
           phone: profileData.phone || '',
           address: profileData.address || '',
           dateOfBirth: profileData.dateOfBirth || '',
+          preferredCurrency: profileData.preferredCurrency || 'KWD',
         })
       } catch (error) {
         console.error('Failed to fetch profile:', error)
@@ -113,10 +120,12 @@ export function CustomerProfile() {
       const payload = {
         fullName: `${data.firstName} ${data.lastName}`.trim(),
         email: data.email,
-        phoneNumber: data.phone || ''
+        phoneNumber: data.phone || '',
+        preferredCurrency: data.preferredCurrency,
       }
       const response = await api.put('/api/customer/update', payload)
       setProfile(response.data)
+      await refreshProfile()
       setIsEditing(false)
       toast.success('Profile updated successfully')
     } catch (error) {
@@ -134,6 +143,7 @@ export function CustomerProfile() {
       phone: profile?.phone || '',
       address: profile?.address || '',
       dateOfBirth: profile?.dateOfBirth || '',
+      preferredCurrency: profile?.preferredCurrency || 'KWD',
     })
     setIsEditing(false)
   }
@@ -388,7 +398,6 @@ export function CustomerProfile() {
                           </FormItem>
                         )}
                       />
-                      
                       <FormField
                         control={form.control}
                         name="address"
@@ -402,6 +411,36 @@ export function CustomerProfile() {
                                 placeholder={t('profile.placeholder.address')}
                               />
                             </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="preferredCurrency"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Preferred Currency</FormLabel>
+                            <Select
+                              value={field.value}
+                              onValueChange={(value) => {
+                                if (!isEditing) {
+                                  setIsEditing(true)
+                                }
+                                field.onChange(value)
+                              }}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select currency" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {currencyOptions.map((code) => (
+                                  <SelectItem key={code} value={code}>
+                                    {code}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
                             <FormMessage />
                           </FormItem>
                         )}

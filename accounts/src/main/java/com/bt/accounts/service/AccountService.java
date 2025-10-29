@@ -20,6 +20,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import java.math.RoundingMode;
 
 @Service
 @RequiredArgsConstructor
@@ -28,6 +29,7 @@ public class AccountService {
 
     private final FdAccountRepository accountRepository;
     private final AccountTransactionRepository transactionRepository;
+    private final CashCachedService cashCachedService;
     private final CustomerServiceClient customerServiceClient;
     private final ProductServiceClient productServiceClient;
     private final FdCalculatorServiceClient fdCalculatorServiceClient;
@@ -35,6 +37,9 @@ public class AccountService {
 
     @Value("${accounts.sequence.prefix:FD}")
     private String accountPrefix;
+
+    @Value("${services.product.service-token:}")
+    private String productServiceToken;
 
     @Transactional
     public AccountResponse createAccount(AccountCreationRequest request, String authToken) {
@@ -45,7 +50,13 @@ public class AccountService {
 
         validateProductRules(request, product);
 
+        BigDecimal principalTokens = requireWholeTokens(request.getPrincipalAmount());
+        if (principalTokens.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new InvalidAccountDataException("Principal must be at least 1 CashCached token (1 KWD)");
+        }
+
         FdCalculationDto calculation = calculateMaturity(request, authToken);
+        BigDecimal maturityTokens = requireWholeTokens(calculation.getMaturityAmount());
 
         String accountNo = accountNumberGenerator.generateAccountNumber(request.getBranchCode());
 
@@ -53,17 +64,24 @@ public class AccountService {
                 .accountNo(accountNo)
                 .customerId(request.getCustomerId())
                 .productCode(request.getProductCode())
-                .principalAmount(request.getPrincipalAmount())
+                .productRefId(product.getId())
+                .principalAmount(principalTokens)
                 .interestRate(request.getInterestRate())
+                .baseInterestRate(request.getInterestRate())
                 .tenureMonths(request.getTenureMonths())
-                .maturityAmount(calculation.getMaturityAmount())
-                .maturityDate(LocalDateTime.now().plusMonths(request.getTenureMonths()))
+                .productMaxTenureMonths(product.getMaxTermMonths())
+                .maturityAmount(maturityTokens)
                 .branchCode(request.getBranchCode())
                 .status(FdAccount.AccountStatus.ACTIVE)
                 .createdBy(getCurrentUsername())
                 .build();
 
         FdAccount savedAccount = accountRepository.save(account);
+        CashCachedIssueRequest issueRequest = new CashCachedIssueRequest();
+        issueRequest.setCustomerId(request.getCustomerId());
+        issueRequest.setAmount(principalTokens);
+        issueRequest.setReference("Account creation " + accountNo);
+        cashCachedService.issue(issueRequest);
         log.info("Created FD account: {} for customer: {}", accountNo, request.getCustomerId());
 
         return AccountResponse.fromEntity(savedAccount);
@@ -110,14 +128,22 @@ public class AccountService {
 
         validateProductRules(temp, product);
 
+        BigDecimal newPrincipalTokens = requireWholeTokens(newPrincipal);
+        if (newPrincipalTokens.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new InvalidAccountDataException("Principal must be at least 1 CashCached token (1 KWD)");
+        }
+
         FdCalculationDto calc = calculateMaturity(temp, authToken);
 
         account.setProductCode(newProductCode);
         account.setInterestRate(newInterestRate);
+        account.setBaseInterestRate(newInterestRate);
         account.setTenureMonths(newTenureMonths);
-        account.setPrincipalAmount(newPrincipal);
+        account.setPrincipalAmount(newPrincipalTokens);
         account.setMaturityAmount(calc.getMaturityAmount());
         account.setMaturityDate(LocalDateTime.now().plusMonths(newTenureMonths));
+        account.setProductRefId(product.getId());
+        account.setProductMaxTenureMonths(product.getMaxTermMonths());
 
         FdAccount saved = accountRepository.save(account);
         AccountResponse resp = AccountResponse.fromEntity(saved);
@@ -213,7 +239,7 @@ public class AccountService {
 
     private ProductDto validateProduct(String productCode, String authToken) {
         try {
-            ApiResponse<ProductDto> response = productServiceClient.getProductByCode(productCode, authToken);
+            ApiResponse<ProductDto> response = productServiceClient.getProductByCode(productCode, resolveProductServiceToken(authToken));
             if (response.getData() == null) {
                 throw new ProductNotFoundException("Product not found: " + productCode);
             }
@@ -286,12 +312,28 @@ public class AccountService {
         return authentication != null ? authentication.getName() : "system";
     }
 
-    private java.math.BigDecimal computeCurrentBalance(String accountNo) {
+    private BigDecimal requireWholeTokens(BigDecimal amount) {
+        if (amount == null) {
+            throw new InvalidAccountDataException("Token amount is required");
+        }
+        try {
+            BigDecimal normalized = amount.stripTrailingZeros();
+            BigDecimal tokens = normalized.setScale(0, RoundingMode.UNNECESSARY);
+            if (tokens.compareTo(BigDecimal.ONE) < 0) {
+                throw new InvalidAccountDataException("Amount must be at least 1 CashCached token (1 KWD)");
+            }
+            return tokens;
+        } catch (ArithmeticException ex) {
+            throw new InvalidAccountDataException("CashCached tokens must be whole numbers");
+        }
+    }
+
+    private BigDecimal computeCurrentBalance(String accountNo) {
         List<com.bt.accounts.entity.AccountTransaction> txns = transactionRepository.findByAccountNoOrderByTransactionDateDesc(accountNo);
         if (txns == null || txns.isEmpty()) {
             FdAccount account = accountRepository.findByAccountNo(accountNo).orElseThrow();
-            java.math.BigDecimal pa = account.getPrincipalAmount();
-            return pa != null ? pa : java.math.BigDecimal.ZERO;
+            BigDecimal pa = account.getPrincipalAmount();
+            return pa != null ? pa : BigDecimal.ZERO;
         }
         return txns.get(0).getBalanceAfter();
     }

@@ -37,7 +37,8 @@ public class ProxyController {
             "/api/v1/product/**",
             "/api/v1/pricing-rule/**",
             "/api/fd/**",
-            "/api/accounts/**"
+            "/api/accounts/**",
+            "/api/financials/stablecoin/**"
     }, method = { RequestMethod.GET, RequestMethod.POST, RequestMethod.PUT, RequestMethod.DELETE })
     public ResponseEntity<byte[]> proxyApi(HttpServletRequest request, @RequestBody(required = false) byte[] body)
             throws IOException {
@@ -97,7 +98,7 @@ public class ProxyController {
             return productBase;
         if (path.startsWith("/api/fd"))
             return fdBase;
-        if (path.startsWith("/api/accounts"))
+        if (path.startsWith("/api/accounts") || path.startsWith("/api/financials"))
             return accountsBase;
         throw new IllegalArgumentException("Unsupported path: " + path);
     }

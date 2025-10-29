@@ -68,13 +68,6 @@ npm run dev
 - If ports are busy, close existing Java/Vite windows and rerun the scripts
 - Ensure Java, Maven, Node, and pnpm/npm are on PATH
 
-## Deleting the demo UI folder
-`FRONTENDDEMOONLYFORTESTING` is not referenced by the application and can be deleted.
-To remove it from Git:
-```bat
-git rm -r FRONTENDDEMOONLYFORTESTING
-git commit -m "chore: remove demo frontend folder"
-```
 
 ## Stopping services
 - Close the opened terminal windows, or press Ctrl+C in each window to stop

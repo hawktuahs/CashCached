@@ -19,9 +19,9 @@ public class AccountCreationRequest {
     @Size(max = 50, message = "Product code must not exceed 50 characters")
     private String productCode;
 
-    @NotNull(message = "Principal amount is required")
-    @DecimalMin(value = "1000.00", message = "Minimum principal amount is 1000")
-    @DecimalMax(value = "100000000.00", message = "Maximum principal amount is 100000000")
+    @NotNull(message = "Principal token amount is required")
+    @DecimalMin(value = "1.00", message = "Minimum principal amount is 1 CashCached token")
+    @DecimalMax(value = "100000000.00", message = "Maximum principal amount is 100000000 CashCached tokens")
     private BigDecimal principalAmount;
 
     @NotNull(message = "Interest rate is required")

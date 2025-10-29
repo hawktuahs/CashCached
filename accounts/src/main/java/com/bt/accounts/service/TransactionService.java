@@ -2,6 +2,7 @@ package com.bt.accounts.service;
 
 import com.bt.accounts.dto.TransactionRequest;
 import com.bt.accounts.dto.TransactionResponse;
+import com.bt.accounts.dto.CashCachedIssueRequest;
 import com.bt.accounts.entity.AccountTransaction;
 import com.bt.accounts.entity.FdAccount;
 import com.bt.accounts.exception.AccountNotFoundException;
@@ -33,13 +34,19 @@ public class TransactionService {
 
     private final AccountTransactionRepository transactionRepository;
     private final FdAccountRepository accountRepository;
+    private final CashCachedService cashCachedService;
     private final CustomerServiceClient customerServiceClient;
     private final ProductServiceClient productServiceClient;
+    private final PricingRuleEvaluator pricingRuleEvaluator;
     @Value("${self.txn.relaxed:false}")
     private boolean selfTxnRelaxed;
 
     @Transactional
     public TransactionResponse recordTransaction(String accountNo, TransactionRequest request) {
+        return recordTransaction(accountNo, request, null);
+    }
+
+    public TransactionResponse recordTransaction(String accountNo, TransactionRequest request, LocalDateTime occurredAt) {
         FdAccount account = accountRepository.findByAccountNo(accountNo)
                 .orElseThrow(() -> new AccountNotFoundException("Account not found: " + accountNo));
 
@@ -49,20 +56,30 @@ public class TransactionService {
 
         String transactionId = generateTransactionId(accountNo);
 
+        AccountTransaction.TransactionType type = AccountTransaction.TransactionType.valueOf(request.getTransactionType());
+        BigDecimal amountTokens = requireTokenAmount(request.getAmount());
         BigDecimal currentBalance = calculateCurrentBalance(accountNo);
-        BigDecimal newBalance = calculateNewBalance(currentBalance, request);
+        PricingRuleEvaluator.EvaluationResult pricing = applyPricingRules(account, currentBalance, request.getAuthToken());
+        BigDecimal newBalance = calculateNewBalance(currentBalance, type, amountTokens);
+
+        reconcileWalletForTransaction(account, type, amountTokens, request.getReferenceNo());
+        applyPenaltyIfNeeded(account, pricing.getPenalty(), request.getReferenceNo());
 
         AccountTransaction transaction = AccountTransaction.builder()
                 .transactionId(transactionId)
                 .accountNo(accountNo)
-                .transactionType(AccountTransaction.TransactionType.valueOf(request.getTransactionType()))
-                .amount(request.getAmount())
+                .transactionType(type)
+                .amount(amountTokens)
                 .balanceAfter(newBalance)
                 .description(request.getDescription())
                 .referenceNo(request.getReferenceNo())
                 .processedBy(getCurrentUsername())
                 .remarks(request.getRemarks())
                 .build();
+
+        if (occurredAt != null) {
+            transaction.setTransactionDate(occurredAt);
+        }
 
         AccountTransaction savedTransaction = transactionRepository.save(transaction);
         log.info("Recorded transaction: {} for account: {}", transactionId, accountNo);
@@ -113,13 +130,14 @@ public class TransactionService {
             throw new InvalidAccountDataException("Unauthorized transaction for account: " + accountNo);
         }
 
-        String type = request.getTransactionType();
-        if (!("DEPOSIT".equals(type) || "WITHDRAWAL".equals(type))) {
+        AccountTransaction.TransactionType type = AccountTransaction.TransactionType.valueOf(request.getTransactionType());
+        if (!(AccountTransaction.TransactionType.DEPOSIT == type || AccountTransaction.TransactionType.WITHDRAWAL == type)) {
             throw new InvalidAccountDataException("Only DEPOSIT or WITHDRAWAL allowed for self transactions");
         }
 
+        BigDecimal amountTokens = requireTokenAmount(request.getAmount());
         BigDecimal currentBalance = calculateCurrentBalance(accountNo);
-        BigDecimal newBalance = calculateNewBalance(currentBalance, request);
+        BigDecimal newBalance = calculateNewBalance(currentBalance, type, amountTokens);
         if (newBalance.compareTo(BigDecimal.ZERO) < 0) {
             throw new InvalidAccountDataException("Insufficient balance for withdrawal");
         }
@@ -129,10 +147,10 @@ public class TransactionService {
                 ApiResponse<ProductDto> prodResp = productServiceClient.getProductByCode(account.getProductCode(), authHeader);
                 ProductDto product = prodResp != null ? prodResp.getData() : null;
                 if (product != null) {
-                    if ("DEPOSIT".equals(type) && product.getMaxAmount() != null && newBalance.compareTo(product.getMaxAmount()) > 0) {
+                    if (AccountTransaction.TransactionType.DEPOSIT == type && product.getMaxAmount() != null && newBalance.compareTo(product.getMaxAmount()) > 0) {
                         throw new InvalidAccountDataException("Exceeds product maximum amount");
                     }
-                    if ("WITHDRAWAL".equals(type) && product.getMinAmount() != null && newBalance.compareTo(product.getMinAmount()) < 0) {
+                    if (AccountTransaction.TransactionType.WITHDRAWAL == type && product.getMinAmount() != null && newBalance.compareTo(product.getMinAmount()) < 0) {
                         throw new InvalidAccountDataException("Below product minimum amount");
                     }
                 }
@@ -144,8 +162,8 @@ public class TransactionService {
         AccountTransaction transaction = AccountTransaction.builder()
                 .transactionId(transactionId)
                 .accountNo(accountNo)
-                .transactionType(AccountTransaction.TransactionType.valueOf(type))
-                .amount(request.getAmount())
+                .transactionType(type)
+                .amount(amountTokens)
                 .balanceAfter(newBalance)
                 .description(request.getDescription())
                 .referenceNo(request.getReferenceNo())
@@ -154,6 +172,8 @@ public class TransactionService {
                 .build();
 
         AccountTransaction saved = transactionRepository.save(transaction);
+        reconcileWalletForTransaction(account, type, amountTokens, request.getReferenceNo());
+        applyPenaltyIfNeeded(account, pricing.getPenalty(), request.getReferenceNo());
         return TransactionResponse.fromEntity(saved);
     }
 
@@ -197,16 +217,28 @@ public class TransactionService {
         return transactions.get(0).getBalanceAfter();
     }
 
-    private BigDecimal calculateNewBalance(BigDecimal currentBalance, TransactionRequest request) {
-        AccountTransaction.TransactionType type = AccountTransaction.TransactionType
-                .valueOf(request.getTransactionType());
-
+    private BigDecimal calculateNewBalance(BigDecimal currentBalance, AccountTransaction.TransactionType type, BigDecimal amountTokens) {
         return switch (type) {
-            case DEPOSIT, INTEREST_CREDIT -> currentBalance.add(request.getAmount());
+            case DEPOSIT, INTEREST_CREDIT -> currentBalance.add(amountTokens);
             case WITHDRAWAL, PENALTY_DEBIT, PREMATURE_CLOSURE, MATURITY_PAYOUT ->
-                currentBalance.subtract(request.getAmount());
+                currentBalance.subtract(amountTokens);
             case REVERSAL -> currentBalance;
         };
+    }
+
+                .transactionId(txnId)
+                .accountNo(accountNo)
+                .transactionType(AccountTransaction.TransactionType.PENALTY_DEBIT)
+                .amount(penalty)
+                .balanceAfter(calculateNewBalance(calculateCurrentBalance(accountNo), AccountTransaction.TransactionType.PENALTY_DEBIT, penalty))
+                .description("Pricing rule penalty")
+                .referenceNo(reference)
+                .processedBy(getCurrentUsername())
+                .remarks("Auto-applied pricing penalty")
+                .build();
+        penaltyTxn = transactionRepository.save(penaltyTxn);
+        reconcileWalletForTransaction(account, AccountTransaction.TransactionType.PENALTY_DEBIT, penalty, reference);
+        log.info("Applied penalty {} to account {} due to pricing rule", penalty, accountNo);
     }
 
     private String generateTransactionId(String accountNo) {
@@ -218,6 +250,38 @@ public class TransactionService {
     private String getCurrentUsername() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         return authentication != null ? authentication.getName() : "system";
+    }
+
+    private BigDecimal requireTokenAmount(BigDecimal amount) {
+        if (amount == null) {
+            throw new InvalidAccountDataException("Amount is required");
+        }
+        try {
+            BigDecimal normalized = amount.stripTrailingZeros();
+            BigDecimal tokens = normalized.setScale(0, java.math.RoundingMode.UNNECESSARY);
+            if (tokens.compareTo(BigDecimal.ONE) < 0) {
+                throw new InvalidAccountDataException("Amount must be at least 1 CashCached token");
+            }
+            return tokens;
+        } catch (ArithmeticException ex) {
+            throw new InvalidAccountDataException("Amount must be a whole CashCached token");
+        }
+    }
+
+    private void reconcileWalletForTransaction(FdAccount account, AccountTransaction.TransactionType type, BigDecimal amountTokens, String reference) {
+        String customerId = account.getCustomerId();
+        String txnReference = reference != null ? reference : account.getAccountNo();
+        if (AccountTransaction.TransactionType.DEPOSIT == type) {
+            cashCachedService.debitWallet(customerId, amountTokens, "Deposit to account " + txnReference);
+        } else if (AccountTransaction.TransactionType.WITHDRAWAL == type || AccountTransaction.TransactionType.PENALTY_DEBIT == type || AccountTransaction.TransactionType.PREMATURE_CLOSURE == type) {
+            cashCachedService.creditWallet(customerId, amountTokens, "Withdrawal from account " + txnReference);
+        } else if (AccountTransaction.TransactionType.MATURITY_PAYOUT == type) {
+            CashCachedIssueRequest request = new CashCachedIssueRequest();
+            request.setCustomerId(customerId);
+            request.setAmount(amountTokens);
+            request.setReference("Maturity payout " + txnReference);
+            cashCachedService.issue(request);
+        }
     }
 
     private String getCurrentUserIdClaim() {

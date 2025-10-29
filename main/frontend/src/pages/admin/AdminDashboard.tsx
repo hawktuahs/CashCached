@@ -18,7 +18,9 @@ import { Sheet, SheetContent, SheetFooter, SheetHeader, SheetTitle } from '@/com
 import { Label } from '@/components/ui/label'
 
 import { useAuth } from '@/context/AuthContext'
+import { useI18n } from '@/context/I18nContext'
 import { api } from '@/lib/api'
+import { useStablecoinConversion } from '@/hooks/useStablecoinConversion'
 
 interface Account {
   id: string
@@ -48,7 +50,9 @@ type OpenAccountFormData = z.infer<typeof openAccountSchema>
 
 export function AdminDashboard() {
   const { user } = useAuth()
+  const { t } = useI18n()
   const navigate = useNavigate()
+  const { formatTokens, formatConvertedTokens, preferredCurrency } = useStablecoinConversion()
 
   const isStaff = user?.role === 'ADMIN' || user?.role === 'BANKOFFICER'
 
@@ -689,7 +693,7 @@ export function AdminDashboard() {
                 name="principalAmount"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Principal Amount (₹)</FormLabel>
+                    <FormLabel>{t('calculator.principalTokens')}</FormLabel>
                     <FormControl>
                       <Input type="number" value={field.value} onChange={(e) => field.onChange(Number(e.target.value))} />
                     </FormControl>
@@ -791,7 +795,10 @@ export function AdminDashboard() {
                     </div>
                     <div className="flex items-center justify-between">
                       <div className="text-sm">Principal</div>
-                      <div className="text-sm">{acc.principalAmount}</div>
+                      <div className="text-right text-sm">
+                        <div>{formatTokens(acc.principalAmount)}</div>
+                        <div className="text-xs text-muted-foreground">{formatConvertedTokens(acc.principalAmount, preferredCurrency)}</div>
+                      </div>
                     </div>
                     <div className="flex items-center justify-between">
                       <div className="text-sm">Rate (% p.a.)</div>
@@ -799,7 +806,10 @@ export function AdminDashboard() {
                     </div>
                     <div className="flex items-center justify-between">
                       <div className="text-sm">Balance</div>
-                      <div className="text-sm">{acc.balance}</div>
+                      <div className="text-right text-sm">
+                        <div>{formatTokens(acc.balance)}</div>
+                        <div className="text-xs text-muted-foreground">{formatConvertedTokens(acc.balance, preferredCurrency)}</div>
+                      </div>
                     </div>
                     <Separator />
                     <div className="flex justify-end gap-2">

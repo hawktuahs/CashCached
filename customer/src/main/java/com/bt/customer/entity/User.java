@@ -37,6 +37,9 @@ public class User {
     @Column(nullable = false, length = 20)
     private Role role;
 
+    @Column(name = "preferred_currency", length = 10)
+    private String preferredCurrency;
+
     @Column(nullable = false)
     private Boolean active;
 
@@ -56,6 +59,9 @@ public class User {
         if (role == null) {
             role = Role.CUSTOMER;
         }
+        if (preferredCurrency == null || preferredCurrency.isBlank()) {
+            preferredCurrency = "KWD";
+        }
     }
 
     @PreUpdate
@@ -67,5 +73,9 @@ public class User {
         CUSTOMER,
         ADMIN,
         BANKOFFICER
+    }
+
+    public void setPreferredCurrency(String preferredCurrency) {
+        this.preferredCurrency = preferredCurrency != null ? preferredCurrency.trim().toUpperCase() : null;
     }
 }

@@ -60,6 +60,13 @@ public class CustomerService {
             user.setPhoneNumber(request.getPhoneNumber());
         }
 
+        if (request.getPreferredCurrency() != null) {
+            String code = request.getPreferredCurrency().trim().toUpperCase();
+            if (!code.isEmpty()) {
+                user.setPreferredCurrency(code);
+            }
+        }
+
         User updatedUser = userRepository.save(user);
         return UserProfileResponse.fromUser(updatedUser);
     }

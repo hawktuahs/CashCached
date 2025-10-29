@@ -19,7 +19,9 @@ import { api } from '@/lib/api'
 
 interface DashboardStats {
   totalAccounts: number
-  totalBalance: number
+  totalTokens: number
+  totalConverted: number
+  currency: string
   activeProducts: number
   recentTransactions: number
 }
@@ -59,13 +61,15 @@ export function Dashboard() {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [accounts, setAccounts] = useState<AccountSummary[]>([])
   const [products, setProducts] = useState<ProductSummary[]>([])
-  const GEMINI_API_KEY = 'AIzaSyA3IyyBUjMkFGexYTbJPd_TL2-gHWEtKB0'
+  const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || ''
   const chatContainerRef = useRef<HTMLDivElement | null>(null)
 
-  const formatCurrency = (value: number) => {
-    if (!Number.isFinite(value)) return '₹0'
-    return `₹${value.toLocaleString('en-IN')}`
-  }
+  const formatTokens = (value: number) => `${Number.isFinite(value) ? value.toLocaleString(undefined, { maximumFractionDigits: 0 }) : '0'} CCHD`
+  const formatCurrency = (value: number, currency: string) => new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency,
+    maximumFractionDigits: 2,
+  }).format(Number.isFinite(value) ? value : 0)
 
   useEffect(() => {
     const el = chatContainerRef.current
@@ -85,15 +89,19 @@ export function Dashboard() {
     const q = question.toLowerCase()
     if (!q) return null
 
+    const currency = stats?.currency || 'KWD'
+    const fallbackTokens = accounts.reduce((sum, acc) => sum + acc.balance, 0)
+    const totalTokens = typeof stats?.totalTokens === 'number' ? stats.totalTokens : fallbackTokens
+    const totalConverted = typeof stats?.totalConverted === 'number' ? stats.totalConverted : fallbackTokens
+
     if (q.includes('how many') && q.includes('account')) {
       return accounts.length
-        ? `You currently hold ${accounts.length} fixed deposit account${accounts.length === 1 ? '' : 's'} with a combined balance of ${formatCurrency(accounts.reduce((sum, acc) => sum + acc.balance, 0))}.`
+        ? `You currently hold ${accounts.length} fixed deposit account${accounts.length === 1 ? '' : 's'} with a combined balance of ${formatTokens(totalTokens)} (${formatCurrency(totalConverted, currency)}).`
         : 'I do not see any fixed deposit accounts on your profile yet.'
     }
 
     if (q.includes('total balance') || q.includes('overall balance')) {
-      const balance = stats?.totalBalance ?? accounts.reduce((sum, acc) => sum + acc.balance, 0)
-      return `Your total balance across all BankTrust accounts is ${formatCurrency(balance)}.`
+      return `Your total balance across all BankTrust accounts is ${formatCurrency(totalConverted, currency)} (${formatTokens(totalTokens)}).`
     }
 
     const bestKeywords = ['best', 'maximize', 'maximise', 'highest', 'top', 'gain']
@@ -101,7 +109,7 @@ export function Dashboard() {
       const rankedAccounts = [...accounts].filter((acc) => Number.isFinite(acc.interestRate)).sort((a, b) => b.interestRate - a.interestRate)
       if (rankedAccounts.length) {
         const top = rankedAccounts[0]
-        return `Among your current holdings, the ${top.productName} account (${top.accountNumber}) offers the highest rate at ${top.interestRate}% with a balance of ${formatCurrency(top.balance)}.`
+        return `Among your current holdings, the ${top.productName} account (${top.accountNumber}) offers the highest rate at ${top.interestRate}% with a balance of ${formatTokens(top.balance)}.`
       }
 
       const rankedProducts = [...products]
@@ -165,11 +173,11 @@ export function Dashboard() {
       }
 
       const instruction = 'You are the BankTrust dashboard assistant. Provide actionable guidance using the customer data below. Reference specific BankTrust accounts and fixed deposit offerings from the provided context. Always keep the conversation grounded in the BankTrust application and ask for missing details instead of refusing.'
-      const totalBalanceValue = stats?.totalBalance ?? accounts.reduce((sum, acc) => sum + acc.balance, 0)
+      const totalBalanceValue = stats?.totalConverted ?? 0
       const accountSection = accounts.length
         ? accounts
             .slice(0, 8)
-            .map((acc, index) => `Account ${index + 1}: ${acc.productName} • Number ${acc.accountNumber} • Balance ${formatCurrency(acc.balance)} • Interest ${acc.interestRate}% • Opened ${formatDate(acc.openedOn)} • Matures ${formatDate(acc.maturityDate)}`)
+            .map((acc, index) => `Account ${index + 1}: ${acc.productName} • Number ${acc.accountNumber} • Balance ${formatTokens(acc.balance)} • Interest ${acc.interestRate}% • Opened ${formatDate(acc.openedOn)} • Matures ${formatDate(acc.maturityDate)}`)
             .join('\n')
         : 'No fixed deposit accounts registered.'
       const productSection = products.length
@@ -178,12 +186,17 @@ export function Dashboard() {
             .map((prod, index) => `Product ${index + 1}: ${prod.name} (${prod.code}) • Rate range ${prod.minInterestRate}% - ${prod.maxInterestRate}% • Tenure ${prod.minTermMonths}-${prod.maxTermMonths} months • ${prod.description}`)
             .join('\n')
         : 'No fixed deposit products available.'
-      const baseContext = `${instruction}\n\nCustomer snapshot:\n- Name: ${user?.firstName || 'Customer'}\n- Accounts owned: ${accounts.length}\n- Total balance: ${formatCurrency(totalBalanceValue)}\n- Recent transactions counted: ${stats?.recentTransactions || 0}\n- Fixed deposit products available to open: ${products.length}\n\nAccounts detail:\n${accountSection}\n\nProduct catalogue:\n${productSection}`
+      const baseContext = `${instruction}\n\nCustomer snapshot:\n- Name: ${user?.firstName || 'Customer'}\n- Accounts owned: ${accounts.length}\n- Total balance: ${formatCurrency(totalBalanceValue, stats?.currency || 'KWD')} (${formatTokens(stats?.totalTokens || 0)})\n- Recent transactions counted: ${stats?.recentTransactions || 0}\n- Fixed deposit products available to open: ${products.length}\n\nAccounts detail:\n${accountSection}\n\nProduct catalogue:\n${productSection}`
 
       const conversationContents = pendingMessages.map((msg) => ({
         role: msg.role === 'assistant' ? 'model' : 'user',
         parts: [{ text: msg.content }],
       }))
+
+      if (!GEMINI_API_KEY) {
+        setMessages([...pendingMessages, { role: 'assistant', content: 'Gemini API key is not configured. Please add VITE_GEMINI_API_KEY to your environment.' }])
+        return
+      }
 
       const models = [
         'gemini-2.0-flash',
@@ -270,7 +283,11 @@ export function Dashboard() {
       })
       setAccounts(mappedAccounts)
       const totalAccounts = mappedAccounts.length
-      const totalBalance = mappedAccounts.reduce((sum, account) => sum + (isFinite(account.balance) ? account.balance : 0), 0)
+      const balanceResp = await api.get(`/api/financials/stablecoin/balance/${cid}`)
+      const balancePayload = balanceResp?.data?.data ?? balanceResp?.data
+      const totalTokens = Number(balancePayload?.balance ?? 0)
+      const totalConverted = Number(balancePayload?.targetValue ?? totalTokens)
+      const currency = String(balancePayload?.targetCurrency ?? balancePayload?.baseCurrency ?? 'KWD')
 
       const productPayload = Array.isArray(prodRes.data?.data) ? prodRes.data.data : prodRes.data
       const mappedProducts = (Array.isArray(productPayload) ? productPayload : []).map((p: any) => ({
@@ -298,11 +315,11 @@ export function Dashboard() {
           return sum
         }, 0)
       }
-      setStats({ totalAccounts, totalBalance, activeProducts, recentTransactions })
+      setStats({ totalAccounts, totalTokens, totalConverted, currency, activeProducts, recentTransactions })
     } catch {
       setAccounts([])
       setProducts([])
-      setStats({ totalAccounts: 0, totalBalance: 0, activeProducts: 0, recentTransactions: 0 })
+      setStats({ totalAccounts: 0, totalTokens: 0, totalConverted: 0, currency: 'KWD', activeProducts: 0, recentTransactions: 0 })
     } finally {
       setIsLoading(false)
     }
@@ -360,7 +377,12 @@ export function Dashboard() {
               <Skeleton className="h-8 w-24" />
             ) : (
               <div className="text-2xl font-bold">
-                ₹{stats?.totalBalance?.toLocaleString() || '0'}
+                <div className="flex flex-col">
+                  <span>{formatTokens(stats?.totalTokens || 0)}</span>
+                  <span className="text-sm text-muted-foreground">
+                    {formatCurrency(stats?.totalConverted || 0, stats?.currency || 'KWD')}
+                  </span>
+                </div>
               </div>
             )}
           </CardContent>

@@ -35,6 +35,9 @@ public class UserProfileResponse {
     @Schema(description = "Account active status", example = "true")
     private Boolean active;
 
+    @Schema(description = "Preferred fiat currency for CashCached conversions", example = "KWD")
+    private String preferredCurrency;
+
     @Schema(description = "Account creation timestamp")
     private LocalDateTime createdAt;
 
@@ -50,6 +53,7 @@ public class UserProfileResponse {
                 .phoneNumber(user.getPhoneNumber())
                 .role(user.getRole().name())
                 .active(user.getActive())
+                .preferredCurrency(user.getPreferredCurrency())
                 .createdAt(user.getCreatedAt())
                 .updatedAt(user.getUpdatedAt())
                 .build();

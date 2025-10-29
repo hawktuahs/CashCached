@@ -1,6 +1,7 @@
 package com.bt.accounts.controller;
 
 import com.bt.accounts.dto.ApiResponse;
+import com.bt.accounts.dto.CashCachedAccountTransferRequest;
 import com.bt.accounts.dto.TransactionRequest;
 import com.bt.accounts.dto.TransactionResponse;
 import com.bt.accounts.service.TransactionService;
@@ -73,6 +74,62 @@ public class TransactionController {
         ApiResponse<TransactionResponse> response = ApiResponse.<TransactionResponse>builder()
                 .success(true)
                 .message("Transaction recorded successfully")
+                .data(transaction)
+                .build();
+
+        return new ResponseEntity<>(response, HttpStatus.CREATED);
+    }
+
+    @PostMapping("/{accountNo}/wallet/deposit")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    @Operation(summary = "Deposit CashCached to FD", description = "Moves tokens from customer's wallet into the specified FD account")
+    public ResponseEntity<ApiResponse<TransactionResponse>> depositFromWallet(
+            @PathVariable String accountNo,
+            @Valid @RequestBody CashCachedAccountTransferRequest request,
+            @RequestHeader(value = "X-User-Id", required = false) String userIdHeader,
+            @RequestHeader(value = "Authorization", required = false) String authHeader) {
+
+        TransactionRequest txnRequest = TransactionRequest.builder()
+                .transactionType("DEPOSIT")
+                .amount(request.getAmount())
+                .description(request.getDescription())
+                .referenceNo(request.getReference())
+                .remarks(request.getRemarks())
+                .build();
+
+        TransactionResponse transaction = transactionService.recordSelfTransaction(accountNo, txnRequest, userIdHeader, authHeader);
+
+        ApiResponse<TransactionResponse> response = ApiResponse.<TransactionResponse>builder()
+                .success(true)
+                .message("Deposit recorded successfully")
+                .data(transaction)
+                .build();
+
+        return new ResponseEntity<>(response, HttpStatus.CREATED);
+    }
+
+    @PostMapping("/{accountNo}/wallet/withdraw")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    @Operation(summary = "Withdraw CashCached from FD", description = "Moves tokens from the FD account back to the customer's wallet")
+    public ResponseEntity<ApiResponse<TransactionResponse>> withdrawToWallet(
+            @PathVariable String accountNo,
+            @Valid @RequestBody CashCachedAccountTransferRequest request,
+            @RequestHeader(value = "X-User-Id", required = false) String userIdHeader,
+            @RequestHeader(value = "Authorization", required = false) String authHeader) {
+
+        TransactionRequest txnRequest = TransactionRequest.builder()
+                .transactionType("WITHDRAWAL")
+                .amount(request.getAmount())
+                .description(request.getDescription())
+                .referenceNo(request.getReference())
+                .remarks(request.getRemarks())
+                .build();
+
+        TransactionResponse transaction = transactionService.recordSelfTransaction(accountNo, txnRequest, userIdHeader, authHeader);
+
+        ApiResponse<TransactionResponse> response = ApiResponse.<TransactionResponse>builder()
+                .success(true)
+                .message("Withdrawal recorded successfully")
                 .data(transaction)
                 .build();
 

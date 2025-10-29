@@ -18,6 +18,7 @@ public class AccountResponse {
     private String productCode;
     private BigDecimal principalAmount;
     private BigDecimal interestRate;
+    private BigDecimal baseInterestRate;
     private Integer tenureMonths;
     private BigDecimal maturityAmount;
     private LocalDateTime maturityDate;
@@ -30,6 +31,9 @@ public class AccountResponse {
     private String closureReason;
     private LocalDateTime updatedAt;
     private BigDecimal currentBalance;
+    private Long activePricingRuleId;
+    private String activePricingRuleName;
+    private LocalDateTime pricingRuleAppliedAt;
 
     public static AccountResponse fromEntity(FdAccount account) {
         return AccountResponse.builder()
@@ -39,6 +43,7 @@ public class AccountResponse {
                 .productCode(account.getProductCode())
                 .principalAmount(account.getPrincipalAmount())
                 .interestRate(account.getInterestRate())
+                .baseInterestRate(account.getBaseInterestRate())
                 .tenureMonths(account.getTenureMonths())
                 .maturityAmount(account.getMaturityAmount())
                 .maturityDate(account.getMaturityDate())
@@ -50,6 +55,9 @@ public class AccountResponse {
                 .closedBy(account.getClosedBy())
                 .closureReason(account.getClosureReason())
                 .updatedAt(account.getUpdatedAt())
+                .activePricingRuleId(account.getActivePricingRuleId())
+                .activePricingRuleName(account.getActivePricingRuleName())
+                .pricingRuleAppliedAt(account.getPricingRuleAppliedAt())
                 .build();
     }
 }

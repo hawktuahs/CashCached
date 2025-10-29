@@ -24,4 +24,8 @@ public class UpdateProfileRequest {
     @Size(max = 15, message = "Phone number cannot exceed 15 characters")
     @Schema(description = "Updated phone number", example = "+9876543210")
     private String phoneNumber;
+
+    @Size(max = 10, message = "Currency code cannot exceed 10 characters")
+    @Schema(description = "Preferred fiat currency for CashCached conversions", example = "USD")
+    private String preferredCurrency;
 }

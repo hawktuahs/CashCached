@@ -56,17 +56,56 @@ public class JwtTokenProvider {
         }
 
         // Fallback: try to get roles from "roles" claim (plural)
-        List<String> roles = claims.get("roles", List.class);
+        List<?> roles = claims.get("roles", List.class);
         if (roles != null) {
-            for (String r : roles) {
-                if (!r.startsWith("ROLE_")) {
-                    r = "ROLE_" + r;
+            roles.forEach(item -> {
+                String resolved = extractAuthority(item);
+                if (resolved != null) {
+                    authorities.add(new SimpleGrantedAuthority(resolved));
                 }
-                authorities.add(new SimpleGrantedAuthority(r));
-            }
+            });
+        }
+
+        if (!authorities.isEmpty()) {
+            return authorities;
+        }
+
+        // Final fallback: try generic authorities collection (e.g. Spring tokens)
+        List<?> genericAuthorities = claims.get("authorities", List.class);
+        if (genericAuthorities != null) {
+            genericAuthorities.forEach(item -> {
+                String resolved = extractAuthority(item);
+                if (resolved != null) {
+                    authorities.add(new SimpleGrantedAuthority(resolved));
+                }
+            });
         }
 
         return authorities;
+    }
+
+    private String extractAuthority(Object item) {
+        if (item == null) {
+            return null;
+        }
+        if (item instanceof String str) {
+            return normalizeAuthority(str);
+        }
+        if (item instanceof java.util.Map<?, ?> map) {
+            Object value = map.get("authority");
+            if (value instanceof String strVal) {
+                return normalizeAuthority(strVal);
+            }
+        }
+        return null;
+    }
+
+    private String normalizeAuthority(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.startsWith("ROLE_") ? trimmed : "ROLE_" + trimmed;
     }
 
     public boolean validateToken(String token) {

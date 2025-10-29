@@ -16,6 +16,7 @@ import { FdCalculator } from './pages/fd/FdCalculator'
 import { AccountsList } from './pages/accounts/AccountsList'
 import { AccountDetails } from './pages/accounts/AccountDetails'
 import { AdminDashboard } from './pages/admin/AdminDashboard'
+import { CashCachedDashboard } from './pages/financials/CashCachedDashboard'
 import { ErrorBoundary } from './components/ErrorBoundary'
 
 function App() {
@@ -44,6 +45,7 @@ function App() {
                           <Route path="/fd-calculator" element={<FdCalculator />} />
                           <Route path="/accounts" element={<AccountsList />} />
                           <Route path="/accounts/:id" element={<AccountDetails />} />
+                          <Route path="/financials/stablecoin" element={<CashCachedDashboard />} />
                           <Route path="/admin" element={<AdminDashboard />} />
                         </Routes>
                       </AppLayout>

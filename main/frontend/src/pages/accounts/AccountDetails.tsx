@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Input } from '@/components/ui/input'
 import { 
   CreditCard, 
   ArrowLeft,
@@ -13,12 +14,14 @@ import {
   Download,
   Share2,
   Activity,
-  FileText
+  FileText,
+  Coins
 } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { api } from '@/lib/api'
 import { toast } from 'sonner'
 import { useI18n } from '@/context/I18nContext'
+import { useStablecoinConversion } from '@/hooks/useStablecoinConversion'
 
 interface Account {
   id: string
@@ -26,6 +29,7 @@ interface Account {
   accountType: string
   balance: number
   interestRate: number
+  baseInterestRate: number
   maturityDate: string
   status: 'ACTIVE' | 'MATURED' | 'CLOSED'
   createdAt: string
@@ -34,15 +38,19 @@ interface Account {
   customerId: string
   customerName: string
   customerEmail: string
+  activePricingRuleId?: string
+  activePricingRuleName?: string
+  pricingRuleAppliedAt?: string
 }
 
 interface Transaction {
   id: string
   type: 'DEPOSIT' | 'WITHDRAWAL' | 'INTEREST' | 'MATURITY'
-  amount: number
+  tokens: number
+  convertedDisplay: string
   description: string
   timestamp: string
-  balance: number
+  balanceTokens: number
 }
 
 export function AccountDetails() {
@@ -54,39 +62,73 @@ export function AccountDetails() {
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isLoadingTransactions, setIsLoadingTransactions] = useState(false)
-
   const isAdmin = user?.role === 'ADMIN' || user?.role === 'BANKOFFICER'
-
-  const [depositAmount, setDepositAmount] = useState<number>(0)
-  const [withdrawAmount, setWithdrawAmount] = useState<number>(0)
+  const [walletTokens, setWalletTokens] = useState<number>(0)
+  const [isWalletLoading, setIsWalletLoading] = useState(false)
+  const [depositTokens, setDepositTokens] = useState<string>('')
+  const [withdrawTokens, setWithdrawTokens] = useState<string>('')
   const [isPosting, setIsPosting] = useState(false)
+  const { preferredCurrency, formatTokens, formatConvertedTokens } = useStablecoinConversion()
 
-  const postSelfTransaction = async (t: 'DEPOSIT' | 'WITHDRAWAL', amount: number) => {
-    if (!id || amount <= 0) return
-    setIsPosting(true)
+  const parseTokens = (value: string) => {
+    const normalized = value.trim()
+    if (!normalized) return 0
+    const num = Number(normalized)
+    if (!Number.isFinite(num)) return 0
+    return Math.floor(num)
+  }
+
+  const formatPercent = (value: number) => {
+    const normalized = Number.isFinite(value) ? value : 0
+    return `${normalized.toFixed(2)}%`
+  }
+
+  const fetchWalletBalance = async (customerIdParam: string) => {
+    if (!customerIdParam) {
+      setWalletTokens(0)
+      return null
+    }
+    setIsWalletLoading(true)
     try {
-      await api.post(
-        `/api/accounts/${id}/transactions/self`,
-        {
-          transactionType: t,
-          amount,
-          description: t === 'DEPOSIT' ? 'Customer deposit' : 'Customer withdrawal',
-        },
-        {
-          headers: {
-            'X-User-Id': String(account?.customerId || user?.id || ''),
-          },
-        }
-      )
-      const accRes = await api.get(`/api/accounts/${id}`)
-      const payload = accRes?.data?.data ?? accRes?.data
+      const response = await api.get(`/api/financials/stablecoin/balance/${customerIdParam}`)
+      const payload = response?.data?.data ?? response?.data
+      const rawBalance = Number(payload?.balance ?? 0)
+      const tokens = Number.isFinite(rawBalance) ? rawBalance : 0
+      const rawTarget = Number(payload?.targetValue ?? rawBalance)
+      const targetValue = Number.isFinite(rawTarget) ? rawTarget : tokens
+      const currency = String(payload?.targetCurrency ?? payload?.baseCurrency ?? preferredCurrency ?? 'KWD')
+      setWalletTokens(tokens)
+      return {
+        customerId: customerIdParam,
+        balance: tokens,
+        targetValue,
+        currency,
+      }
+    } catch (error) {
+      console.error('Failed to load wallet balance', error)
+      toast.error('Unable to load CashCached wallet balance')
+      setWalletTokens(0)
+      return null
+    } finally {
+      setIsWalletLoading(false)
+    }
+  }
+
+  const loadAccount = async (accountId: string, options: { silent?: boolean } = {}) => {
+    if (!options.silent) {
+      setIsLoading(true)
+    }
+    try {
+      const response = await api.get(`/api/accounts/${accountId}`)
+      const payload = response?.data?.data ?? response?.data
       const a = payload || {}
-      setAccount({
+      const mapped: Account = {
         id: String(a.id ?? ''),
-        accountNumber: String(a.accountNo ?? a.accountNumber ?? id ?? ''),
+        accountNumber: String(a.accountNo ?? a.accountNumber ?? accountId ?? ''),
         accountType: String(a.accountType ?? 'FIXED_DEPOSIT'),
         balance: Number(a.currentBalance ?? a.balance ?? a.maturityAmount ?? 0),
         interestRate: Number(a.interestRate ?? 0),
+        baseInterestRate: Number(a.baseInterestRate ?? a.interestRate ?? 0),
         maturityDate: String(a.maturityDate ?? new Date().toISOString()),
         status: String(a.status ?? 'ACTIVE') as any,
         createdAt: String(a.createdAt ?? new Date().toISOString()),
@@ -95,72 +137,53 @@ export function AccountDetails() {
         customerId: String(a.customerId ?? ''),
         customerName: String(a.customerName ?? ''),
         customerEmail: String(a.customerEmail ?? ''),
-      })
-      toast.success(`${t} recorded`)
-      fetchTransactions()
-    } catch (e: any) {
-      const msg = e?.response?.data?.message || 'Failed to record transaction'
-      toast.error(String(msg))
+        activePricingRuleId: a.activePricingRuleId ? String(a.activePricingRuleId) : undefined,
+        activePricingRuleName: a.activePricingRuleName ? String(a.activePricingRuleName) : undefined,
+        pricingRuleAppliedAt: a.pricingRuleAppliedAt ? String(a.pricingRuleAppliedAt) : undefined,
+      }
+      setAccount(mapped)
+      fetchWalletBalance(mapped.customerId)
+    } catch (error) {
+      console.error('Failed to fetch account details:', error)
+      toast.error('Failed to load account details')
+      navigate('/accounts')
     } finally {
-      setIsPosting(false)
+      if (!options.silent) {
+        setIsLoading(false)
+      }
     }
   }
 
   useEffect(() => {
-    const fetchAccountDetails = async () => {
-      try {
-        const response = await api.get(`/api/accounts/${id}`)
-        const payload = response?.data?.data ?? response?.data
-        const a = payload || {}
-        const mapped: Account = {
-          id: String(a.id ?? ''),
-          accountNumber: String(a.accountNo ?? a.accountNumber ?? id ?? ''),
-          accountType: String(a.accountType ?? 'FIXED_DEPOSIT'),
-          balance: Number(a.currentBalance ?? a.balance ?? a.maturityAmount ?? 0),
-          interestRate: Number(a.interestRate ?? 0),
-          maturityDate: String(a.maturityDate ?? new Date().toISOString()),
-          status: String(a.status ?? 'ACTIVE') as any,
-          createdAt: String(a.createdAt ?? new Date().toISOString()),
-          productName: String(a.productName ?? a.productCode ?? 'Product'),
-          principalAmount: Number(a.principalAmount ?? 0),
-          customerId: String(a.customerId ?? ''),
-          customerName: String(a.customerName ?? ''),
-          customerEmail: String(a.customerEmail ?? ''),
-        }
-        setAccount(mapped)
-      } catch (error) {
-        console.error('Failed to fetch account details:', error)
-        toast.error('Failed to load account details')
-        navigate('/accounts')
-      } finally {
-        setIsLoading(false)
-      }
-    }
-
     if (id) {
-      fetchAccountDetails()
+      loadAccount(id)
     }
-  }, [id, navigate])
+  }, [id])
 
   const fetchTransactions = async () => {
     setIsLoadingTransactions(true)
     try {
       const response = await api.get(`/api/accounts/${id}/transactions`)
       const list = response?.data?.data ?? response?.data ?? []
-      const mapped = (Array.isArray(list) ? list : []).map((t: any) => ({
-        id: String(t.id ?? ''),
-        type: ((): Transaction['type'] => {
-          const v = String(t.type ?? '').toUpperCase()
-          if (v === 'WITHDRAWAL') return 'WITHDRAWAL'
-          if (v === 'INTEREST') return 'INTEREST'
-          if (v === 'MATURITY') return 'MATURITY'
-          return 'DEPOSIT'
-        })(),
-        amount: Number(t.amount ?? 0),
-        description: String(t.description ?? ''),
-        timestamp: String(t.timestamp ?? new Date().toISOString()),
-        balance: Number(t.balanceAfter ?? t.balance ?? 0),
-      }))
+      const mapped = (Array.isArray(list) ? list : []).map((t: any) => {
+        const tokens = Number(t.amount ?? 0)
+        const balanceTokens = Number(t.balanceAfter ?? t.balance ?? 0)
+        return {
+          id: String(t.id ?? ''),
+          type: ((): Transaction['type'] => {
+            const v = String(t.transactionType ?? t.type ?? '').toUpperCase()
+            if (v === 'WITHDRAWAL') return 'WITHDRAWAL'
+            if (v === 'INTEREST_CREDIT' || v === 'INTEREST') return 'INTEREST'
+            if (v === 'MATURITY_PAYOUT' || v === 'MATURITY') return 'MATURITY'
+            return 'DEPOSIT'
+          })(),
+          tokens,
+          convertedDisplay: formatConvertedTokens(tokens, preferredCurrency),
+          description: String(t.description ?? ''),
+          timestamp: String(t.createdAt ?? t.timestamp ?? new Date().toISOString()),
+          balanceTokens,
+        } satisfies Transaction
+      })
       setTransactions(mapped)
     } catch (error) {
       console.error('Failed to fetch transactions:', error)
@@ -174,20 +197,12 @@ export function AccountDetails() {
     if (id) fetchTransactions()
   }, [id])
 
-  const interestEarned = useMemo(() => {
+  const interestEarnedTokens = useMemo(() => {
     if (!transactions || transactions.length === 0) return 0
     return transactions
       .filter((x) => x.type === 'INTEREST')
-      .reduce((sum, x) => sum + (x.amount || 0), 0)
+      .reduce((sum, x) => sum + (x.tokens || 0), 0)
   }, [transactions])
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency: 'INR',
-      maximumFractionDigits: 0,
-    }).format(amount)
-  }
 
   const getStatusBadgeVariant = (status: string) => {
     switch (status) {
@@ -303,6 +318,32 @@ export function AccountDetails() {
         </div>
       </div>
 
+      {user?.role === 'CUSTOMER' && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Coins className="h-5 w-5" />
+              CashCached Wallet
+            </CardTitle>
+            <CardDescription>Available tokens for this customer</CardDescription>
+          </CardHeader>
+          <CardContent className="grid grid-cols-2 gap-4">
+            <div>
+              <p className="text-sm text-muted-foreground">Wallet Balance (CCHD)</p>
+              <p className="text-2xl font-bold">
+                {isWalletLoading ? 'Loading…' : walletTokens.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+              </p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">{preferredCurrency} Equivalent</p>
+              <p className="text-xl font-semibold">
+                {isWalletLoading ? '—' : formatConvertedTokens(walletTokens, preferredCurrency)}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <Tabs defaultValue="overview" className="w-full">
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="overview">{t('details.tabs.overview')}</TabsTrigger>
@@ -342,17 +383,113 @@ export function AccountDetails() {
               {user?.role === 'CUSTOMER' && account.status === 'ACTIVE' && (
                 <div className="grid grid-cols-2 gap-4 pt-2">
                   <div className="space-y-2">
-                    <p className="text-sm font-medium text-muted-foreground">{t('details.deposit.label')}</p>
+                    <p className="text-sm font-medium text-muted-foreground">Deposit (tokens)</p>
                     <div className="flex gap-2">
-                      <input type="number" className="w-full border rounded px-2 py-1" value={depositAmount} onChange={(e) => setDepositAmount(Number(e.target.value))} />
-                      <Button size="sm" disabled={isPosting || depositAmount <= 0} onClick={() => postSelfTransaction('DEPOSIT', depositAmount)}>{t('details.deposit.action')}</Button>
+                      <Input
+                        type="number"
+                        min="1"
+                        step="1"
+                        placeholder="10"
+                        value={depositTokens}
+                        onChange={(e) => setDepositTokens(e.target.value)}
+                      />
+                      <Button
+                        size="sm"
+                        disabled={
+                          isPosting ||
+                          walletTokens <= 0 ||
+                          parseTokens(depositTokens) <= 0 ||
+                          parseTokens(depositTokens) > walletTokens
+                        }
+                        onClick={async () => {
+                          const tokens = parseTokens(depositTokens)
+                          if (!tokens || !id) return
+                          setIsPosting(true)
+                          try {
+                            await api.post(
+                              `/api/accounts/${id}/wallet/deposit`,
+                              {
+                                accountNo: account.accountNumber,
+                                amount: tokens,
+                                description: 'CashCached deposit',
+                                reference: `wallet-${Date.now()}`,
+                              },
+                              {
+                                headers: {
+                                  'X-User-Id': String(account.customerId || user?.id || ''),
+                                },
+                              }
+                            )
+                            toast.success('Deposit recorded')
+                            setDepositTokens('')
+                            const snapshot = await fetchWalletBalance(account.customerId)
+                            if (snapshot) {
+                              window.dispatchEvent(new CustomEvent('cashcached:refresh-wallet', { detail: snapshot }))
+                            }
+                            fetchTransactions()
+                            loadAccount(id, { silent: true })
+                          } catch (error: any) {
+                            toast.error(error?.response?.data?.message || 'Deposit failed')
+                          } finally {
+                            setIsPosting(false)
+                          }
+                        }}
+                      >
+                        Deposit
+                      </Button>
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <p className="text-sm font-medium text-muted-foreground">{t('details.withdraw.label')}</p>
+                    <p className="text-sm font-medium text-muted-foreground">Withdraw (tokens)</p>
                     <div className="flex gap-2">
-                      <input type="number" className="w-full border rounded px-2 py-1" value={withdrawAmount} onChange={(e) => setWithdrawAmount(Number(e.target.value))} />
-                      <Button size="sm" variant="destructive" disabled={isPosting || withdrawAmount <= 0} onClick={() => postSelfTransaction('WITHDRAWAL', withdrawAmount)}>{t('details.withdraw.action')}</Button>
+                      <Input
+                        type="number"
+                        min="1"
+                        step="1"
+                        placeholder="5"
+                        value={withdrawTokens}
+                        onChange={(e) => setWithdrawTokens(e.target.value)}
+                      />
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        disabled={isPosting || parseTokens(withdrawTokens) <= 0}
+                        onClick={async () => {
+                          const tokens = parseTokens(withdrawTokens)
+                          if (!tokens || !id) return
+                          setIsPosting(true)
+                          try {
+                            await api.post(
+                              `/api/accounts/${id}/wallet/withdraw`,
+                              {
+                                accountNo: account.accountNumber,
+                                amount: tokens,
+                                description: 'CashCached withdrawal',
+                                reference: `wallet-${Date.now()}`,
+                              },
+                              {
+                                headers: {
+                                  'X-User-Id': String(account.customerId || user?.id || ''),
+                                },
+                              }
+                            )
+                            toast.success('Withdrawal recorded')
+                            setWithdrawTokens('')
+                            const snapshot = await fetchWalletBalance(account.customerId)
+                            if (snapshot) {
+                              window.dispatchEvent(new CustomEvent('cashcached:refresh-wallet', { detail: snapshot }))
+                            }
+                            fetchTransactions()
+                            loadAccount(id, { silent: true })
+                          } catch (error: any) {
+                            toast.error(error?.response?.data?.message || 'Withdrawal failed')
+                          } finally {
+                            setIsPosting(false)
+                          }
+                        }}
+                      >
+                        Withdraw
+                      </Button>
                     </div>
                   </div>
                 </div>
@@ -371,11 +508,17 @@ export function AccountDetails() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <p className="text-sm font-medium text-muted-foreground">{t('details.currentBalance')}</p>
-                  <p className="text-2xl font-bold">{formatCurrency(account.balance)}</p>
+                  <div className="flex flex-col">
+                    <p className="text-2xl font-bold">{formatTokens(account.balance)}</p>
+                    <p className="text-sm text-muted-foreground">{formatConvertedTokens(account.balance, preferredCurrency)}</p>
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <p className="text-sm font-medium text-muted-foreground">{t('details.principal')}</p>
-                  <p className="text-xl font-semibold">{formatCurrency(account.principalAmount)}</p>
+                  <div className="flex flex-col">
+                    <p className="text-xl font-semibold">{formatTokens(account.principalAmount)}</p>
+                    <p className="text-xs text-muted-foreground">{formatConvertedTokens(account.principalAmount, preferredCurrency)}</p>
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <p className="text-sm font-medium text-muted-foreground">{t('details.interestRate')}</p>
@@ -384,8 +527,9 @@ export function AccountDetails() {
                 <div className="space-y-2">
                   <p className="text-sm font-medium text-muted-foreground">{t('details.interestEarned')}</p>
                   <p className="text-xl font-semibold text-green-600">
-                    {formatCurrency(interestEarned)}
+                    {formatTokens(interestEarnedTokens)}
                   </p>
+                  <p className="text-xs text-muted-foreground">{formatConvertedTokens(interestEarnedTokens, preferredCurrency)}</p>
                 </div>
               </div>
             </CardContent>
@@ -434,11 +578,12 @@ export function AccountDetails() {
                       <div className="text-right">
                         <p className={`font-semibold ${getTransactionTypeColor(transaction.type)}`}>
                           {transaction.type === 'WITHDRAWAL' ? '-' : '+'}
-                          {formatCurrency(transaction.amount)}
+                          {transaction.tokens.toLocaleString(undefined, { maximumFractionDigits: 0 })} CCHD
                         </p>
                         <p className="text-sm text-muted-foreground">
-                          Balance: {formatCurrency(transaction.balance)}
+                          {transaction.convertedDisplay}
                         </p>
+                        <p className="text-xs text-muted-foreground">Account balance after: {transaction.balanceTokens.toLocaleString(undefined, { maximumFractionDigits: 0 })} CCHD</p>
                       </div>
                     </div>
                   ))}
@@ -512,9 +657,14 @@ export function AccountDetails() {
                 <p className="text-sm font-medium text-muted-foreground">Email</p>
                 <p className="text-sm">{account.customerEmail}</p>
               </div>
-              <div className="space-y-2">
-                <p className="text-sm font-medium text-muted-foreground">Customer ID</p>
-                <p className="text-sm font-mono">{account.customerId}</p>
+              <div className="space-y-1">
+                <div className="text-sm text-muted-foreground">Interest Rate</div>
+                <div className="text-2xl font-semibold">{formatPercent(account.interestRate)}</div>
+                {account.baseInterestRate !== undefined && account.baseInterestRate !== account.interestRate && (
+                  <div className="text-xs text-muted-foreground">
+                    Base {formatPercent(account.baseInterestRate)}
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>

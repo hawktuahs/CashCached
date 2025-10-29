@@ -11,20 +11,19 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { useI18n } from '@/context/I18nContext'
-import { Separator } from '@/components/ui/separator'
 import { 
   Calculator, 
   TrendingUp, 
   DollarSign, 
   Info,
   AlertTriangle,
-  RefreshCw
 } from 'lucide-react'
 import { api } from '@/lib/api'
+import { useStablecoinConversion } from '@/hooks/useStablecoinConversion'
 
 const calculatorSchema = z.object({
   productCode: z.string().min(3, 'Product code is required'),
-  principal: z.number().min(1000, 'Minimum amount is ₹1,000'),
+  principal: z.number().min(1, 'Minimum amount is 1 CashCached token'),
   tenure: z.number().min(1, 'Minimum tenure is 1 year'),
   compoundingFrequency: z.enum(['monthly', 'quarterly', 'yearly']),
 })
@@ -49,8 +48,16 @@ const interestRates = [
   { tenure: '10 years', rate: 8.5 },
 ]
 
+const quickPrincipalOptions = [
+  { principal: 100, tenure: 1 },
+  { principal: 250, tenure: 2 },
+  { principal: 500, tenure: 3 },
+  { principal: 1000, tenure: 5 },
+]
+
 export function FdCalculator() {
   const { t } = useI18n()
+  const { formatTokens, formatConvertedTokens, preferredCurrency } = useStablecoinConversion()
   const [result, setResult] = useState<CalculationResult | null>(null)
   const [isCalculating, setIsCalculating] = useState(false)
   const [products, setProducts] = useState<Array<{ code: string; name: string; compoundingFrequency?: string; minTermMonths?: number; maxTermMonths?: number; minAmount?: number; maxAmount?: number }>>([])
@@ -153,25 +160,13 @@ export function FdCalculator() {
     }
   }
 
-  const onSubmit = (data: CalculatorFormData) => {
-    calculateFD(data)
-  }
-
-  const handleQuickCalculate = (principal: number, tenure: number, _rate: number) => {
+  const handleQuickCalculate = (principal: number, tenure: number) => {
     form.setValue('principal', principal)
     form.setValue('tenure', tenure)
     form.setValue('compoundingFrequency', 'yearly')
     const current = form.getValues()
     if (!current.productCode) return toast.error(t('calculator.error.enterProductFirst'))
     calculateFD({ productCode: current.productCode, principal, tenure, compoundingFrequency: 'yearly' })
-  }
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency: 'INR',
-      maximumFractionDigits: 0,
-    }).format(amount)
   }
 
   const productCode = form.watch('productCode')
@@ -199,7 +194,9 @@ export function FdCalculator() {
     }
     if (selectedProduct?.minAmount != null && selectedProduct?.maxAmount != null) {
       if ((principalVal || 0) < selectedProduct.minAmount || (principalVal || 0) > selectedProduct.maxAmount) {
-        ns.push(`${t('calculator.validation.amount')}: ${formatCurrency(selectedProduct.minAmount)} ${t('common.to')} ${formatCurrency(selectedProduct.maxAmount)}`)
+        ns.push(
+          `${t('calculator.validation.amount')}: ${formatTokens(selectedProduct.minAmount)} ${t('common.to')} ${formatTokens(selectedProduct.maxAmount)}`
+        )
       }
     }
     if (freqVal !== 'yearly') {
@@ -231,13 +228,12 @@ export function FdCalculator() {
                 <Calculator className="h-5 w-5" />
                 {t('calculator.calculateHeadline')}
               </CardTitle>
-              <CardDescription>
-                {t('calculator.enterFdDetails')}
-              </CardDescription>
+              <CardTitle>{t('calculator.section.inputs')}</CardTitle>
+              <CardDescription>{t('calculator.section.inputsDesc')}</CardDescription>
             </CardHeader>
             <CardContent>
               <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                <form onSubmit={form.handleSubmit((data) => calculateFD({ productCode: data.productCode, principal: data.principal, tenure: data.tenure, compoundingFrequency: data.compoundingFrequency }))} className="space-y-4">
                   <FormField
                     control={form.control}
                     name="productCode"
@@ -267,10 +263,11 @@ export function FdCalculator() {
                     name="principal"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>{t('calculator.principal')}</FormLabel>
+                        <FormLabel>{t('calculator.principalTokens')}</FormLabel>
                         <FormControl>
                           <Input
                             type="number"
+                            min={1}
                             value={field.value}
                             onChange={(e) => field.onChange(Number(e.target.value))}
                           />
@@ -279,7 +276,6 @@ export function FdCalculator() {
                       </FormItem>
                     )}
                   />
-
                   <FormField
                     control={form.control}
                     name="tenure"
@@ -298,7 +294,6 @@ export function FdCalculator() {
                       </FormItem>
                     )}
                   />
-
                   <FormField
                     control={form.control}
                     name="compoundingFrequency"
@@ -323,21 +318,32 @@ export function FdCalculator() {
                   />
                   <div className="text-xs text-muted-foreground">{t('calculator.compounding')} locked to product: {selectedProduct?.compoundingFrequency || lockedCompLabel}</div>
 
-                  <Button type="submit" disabled={isCalculating}>
-                    {isCalculating ? (
-                      <>
-                        <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                        {t('calculator.calculating')}
-                      </>
-                    ) : (
-                      <>
-                        <Calculator className="mr-2 h-4 w-4" />
-                        {t('calculator.calculateReturns')}
-                      </>
-                    )}
+                  <Button type="submit" disabled={isCalculating} className="w-full md:w-auto">
+                    {isCalculating ? 'Calculating…' : t('calculator.calculate')}
                   </Button>
                 </form>
               </Form>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>{t('calculator.quick.title')}</CardTitle>
+              <CardDescription>{t('calculator.quick.subtitle')}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {quickPrincipalOptions.map((option) => (
+                  <Button
+                    key={`${option.principal}-${option.tenure}`}
+                    variant="outline"
+                    onClick={() => handleQuickCalculate(option.principal, option.tenure)}
+                    disabled={isCalculating}
+                  >
+                    {formatTokens(option.principal)} · {option.tenure}y
+                  </Button>
+                ))}
+              </div>
             </CardContent>
           </Card>
 
@@ -356,10 +362,10 @@ export function FdCalculator() {
                 <div
                   key={index}
                   className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50 cursor-pointer transition-colors"
-                  onClick={() => handleQuickCalculate(100000, parseInt(rate.tenure), rate.rate)}
+                  onClick={() => handleQuickCalculate(100, parseInt(rate.tenure))}
                 >
                   <div>
-                    <p className="font-medium">{formatCurrency(100000)} • {parseInt(rate.tenure)} {parseInt(rate.tenure) === 1 ? t('common.year') : t('common.years')}</p>
+                    <p className="font-medium">{formatTokens(100)} · {parseInt(rate.tenure)} {parseInt(rate.tenure) === 1 ? t('common.year') : t('common.years')}</p>
                     <p className="text-sm text-muted-foreground">
                       {t('calculator.interestRate')}: {rate.rate}%
                     </p>
@@ -380,28 +386,32 @@ export function FdCalculator() {
                   {t('calculator.calculationResults')}
                 </CardTitle>
                 <CardDescription>
-                  {t('calculator.investmentBreakdown')}
+                  <CardTitle>{t('calculator.section.inputs')}</CardTitle>
+                  <CardDescription>{t('calculator.section.inputsDesc')}</CardDescription>
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <p className="text-sm text-muted-foreground">{t('calculator.result.principal')}</p>
-                    <p className="text-2xl font-bold">{formatCurrency(result.principal)}</p>
-                  </div>
-                  <div className="space-y-2">
-                    <p className="text-sm text-muted-foreground">{t('calculator.result.interest')}</p>
-                    <p className="text-2xl font-bold text-green-600">{formatCurrency(result.interestEarned)}</p>
+              <CardContent className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span>{t('calculator.product')}</span>
+                  <span className="font-medium">{selectedProduct?.name || '—'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>{t('calculator.principalTokens')}</span>
+                  <span className="font-medium">{formatTokens(result.principal)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>{t('calculator.result.maturityAmount')}</span>
+                  <div className="flex flex-col items-end">
+                    <span className="text-3xl font-bold text-primary">{formatTokens(result.maturityAmount)}</span>
+                    <span className="text-xs text-muted-foreground">{formatConvertedTokens(result.maturityAmount, preferredCurrency)}</span>
                   </div>
                 </div>
-
-                <Separator />
-
-                <div className="space-y-2">
-                  <p className="text-sm text-muted-foreground">{t('calculator.result.maturityAmount')}</p>
-                  <p className="text-3xl font-bold text-primary">
-                    {formatCurrency(result.maturityAmount)}
-                  </p>
+                <div className="flex justify-between">
+                  <span>{t('calculator.section.result.interest')}</span>
+                  <div className="flex flex-col items-end">
+                    <span className="text-lg font-semibold">{formatTokens(result.interestEarned)}</span>
+                    <span className="text-xs text-muted-foreground">{formatConvertedTokens(result.interestEarned, preferredCurrency)}</span>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4 pt-4">

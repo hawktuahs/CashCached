@@ -16,6 +16,12 @@ public interface AccountTransactionRepository extends JpaRepository<AccountTrans
 
     List<AccountTransaction> findByAccountNoOrderByTransactionDateDesc(String accountNo);
 
+    Optional<AccountTransaction> findTopByAccountNoAndTransactionTypeOrderByTransactionDateDesc(
+            String accountNo, AccountTransaction.TransactionType transactionType);
+
+    List<AccountTransaction> findByAccountNoAndTransactionTypeOrderByTransactionDateDesc(
+            String accountNo, AccountTransaction.TransactionType transactionType);
+
     Optional<AccountTransaction> findByTransactionId(String transactionId);
 
     List<AccountTransaction> findByTransactionType(AccountTransaction.TransactionType transactionType);

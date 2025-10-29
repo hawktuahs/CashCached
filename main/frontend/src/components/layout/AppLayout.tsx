@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router'
 import { 
   Sidebar, 
@@ -32,10 +32,12 @@ import {
   LogOut, 
   Settings,
   Menu,
-  X
+  X,
+  Coins
 } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { useI18n } from '@/context/I18nContext'
+import { api } from '@/lib/api'
 
 const navigation = [
   {
@@ -75,14 +77,88 @@ const navigation = [
   },
 ]
 
+type WalletRefreshDetail = {
+  customerId?: string
+  balance?: number
+  targetValue?: number
+  currency?: string
+}
+
 function AppSidebar() {
   const navigate = useNavigate()
   const location = useLocation()
   const { user, logout } = useAuth()
   const isStaff = user?.role === 'ADMIN' || user?.role === 'BANKOFFICER'
+  const isCustomer = user?.role === 'CUSTOMER'
   const { t, lang, setLang } = useI18n()
 
-  
+  const [walletTokens, setWalletTokens] = useState<number>(0)
+  const [walletTargetValue, setWalletTargetValue] = useState<number>(0)
+  const [walletCurrency, setWalletCurrency] = useState<string>('KWD')
+  const [isWalletLoading, setIsWalletLoading] = useState(false)
+
+  const loadWallet = useCallback(async () => {
+    if (!isCustomer || !user?.id) {
+      setWalletTokens(0)
+      setWalletTargetValue(0)
+      return
+    }
+    setIsWalletLoading(true)
+    try {
+      const response = await api.get(`/api/financials/stablecoin/balance/${user.id}`)
+      const payload = response?.data?.data ?? response?.data
+      const balance = Number(payload?.balance ?? 0)
+      const targetValue = Number(payload?.targetValue ?? 0)
+      const currency = String(payload?.targetCurrency ?? payload?.baseCurrency ?? 'KWD')
+      setWalletTokens(Number.isFinite(balance) ? balance : 0)
+      setWalletTargetValue(Number.isFinite(targetValue) ? targetValue : balance)
+      setWalletCurrency(currency)
+    } catch {
+      setWalletTokens(0)
+      setWalletTargetValue(0)
+    } finally {
+      setIsWalletLoading(false)
+    }
+  }, [isCustomer, user?.id])
+
+  useEffect(() => {
+    loadWallet()
+  }, [loadWallet])
+
+  useEffect(() => {
+    if (!isCustomer || !user?.id) {
+      return
+    }
+    const handler = (event: Event) => {
+      const custom = event as CustomEvent<WalletRefreshDetail>
+      const detail = custom.detail
+      if (detail?.customerId && detail.customerId !== user.id) {
+        loadWallet()
+        return
+      }
+      if (detail && typeof detail.balance === 'number') {
+        setWalletTokens(detail.balance)
+        if (typeof detail.targetValue === 'number') {
+          setWalletTargetValue(detail.targetValue)
+        }
+        if (detail.currency) {
+          setWalletCurrency(detail.currency)
+        }
+        return
+      }
+      loadWallet()
+    }
+    window.addEventListener('cashcached:refresh-wallet', handler as EventListener)
+    return () => {
+      window.removeEventListener('cashcached:refresh-wallet', handler as EventListener)
+    }
+  }, [isCustomer, loadWallet, user?.id])
+
+  const formatConverted = (value: number, currency: string) => new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency,
+    maximumFractionDigits: 2,
+  }).format(value)
 
   return (
     <Sidebar>
@@ -92,13 +168,52 @@ function AppSidebar() {
             <CreditCard className="h-4 w-4" />
           </div>
           <div className="flex flex-col">
-            <span className="text-sm font-semibold">BT Bank</span>
+            <span className="text-sm font-semibold">CashCached</span>
             <span className="text-xs text-muted-foreground">{t('brand.subtitle')}</span>
           </div>
         </div>
       </SidebarHeader>
       
       <SidebarContent>
+        {isCustomer && (
+          <SidebarGroup>
+            <SidebarGroupLabel>CashCached</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <div className="space-y-3 rounded-lg border border-sidebar-border bg-muted/20 p-3">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm font-medium">Wallet Balance</div>
+                  <Coins className="h-4 w-4" />
+                </div>
+                <div>
+                  <div className="text-2xl font-semibold">
+                    {isWalletLoading ? '—' : walletTokens.toLocaleString(undefined, { maximumFractionDigits: 0 })} CCHD
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {isWalletLoading ? 'Loading…' : formatConverted(walletTargetValue, walletCurrency)}
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="default"
+                    size="sm"
+                    className="flex-1"
+                    onClick={() => navigate('/accounts')}
+                  >
+                    Deposit/Withdraw
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1"
+                    onClick={() => navigate('/financials/stablecoin')}
+                  >
+                    History
+                  </Button>
+                </div>
+              </div>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
         {navigation.map((group) => (
           <SidebarGroup key={group.title}>
             <SidebarGroupLabel>
@@ -141,6 +256,16 @@ function AppSidebar() {
                   >
                     <LayoutDashboard className="h-4 w-4" />
                     <span>{t('nav.admin.dashboard')}</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    onClick={() => navigate('/financials/stablecoin')}
+                    isActive={location.pathname === '/financials/stablecoin'}
+                    className="w-full justify-start"
+                  >
+                    <Coins className="h-4 w-4" />
+                    <span>CashCached</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               </SidebarMenu>
@@ -225,7 +350,7 @@ export function AppLayout({ children }: AppLayoutProps) {
               <div className="flex h-6 w-6 items-center justify-center rounded bg-primary text-primary-foreground">
                 <CreditCard className="h-3 w-3" />
               </div>
-              <span className="font-semibold">BT Bank</span>
+              <span className="font-semibold">CashCached</span>
             </div>
           </header>
           <main className="flex-1 overflow-auto p-4 lg:p-6">

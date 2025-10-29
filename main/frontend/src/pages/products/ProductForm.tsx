@@ -29,8 +29,8 @@ const productSchema = z.object({
   maxInterestRate: z.number().min(0, 'Maximum rate must be ≥ 0'),
   minTermMonths: z.number().min(1, 'Minimum tenure must be at least 1 month'),
   maxTermMonths: z.number().min(1, 'Maximum tenure must be at least 1 month'),
-  minAmount: z.number().min(1000, 'Minimum amount must be at least ₹1,000'),
-  maxAmount: z.number().min(1000, 'Maximum amount must be at least ₹1,000'),
+  minAmount: z.number().min(1, 'Minimum amount must be at least 1 token'),
+  maxAmount: z.number().min(1, 'Maximum amount must be at least 1 token'),
   compoundingFrequency: z.string().min(1, 'Select compounding frequency'),
   category: z.string().min(1, 'Please select a category'),
   isActive: z.boolean(),
@@ -445,7 +445,7 @@ export function ProductForm() {
                   name="minAmount"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Minimum Amount (₹)</FormLabel>
+                      <FormLabel>Minimum Amount (CCHD)</FormLabel>
                       <FormControl>
                         <Input
                           type="number"
@@ -465,7 +465,7 @@ export function ProductForm() {
                   name="maxAmount"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Maximum Amount (₹)</FormLabel>
+                      <FormLabel>Maximum Amount (CCHD)</FormLabel>
                       <FormControl>
                         <Input
                           type="number"

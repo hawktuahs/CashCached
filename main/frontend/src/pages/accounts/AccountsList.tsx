@@ -26,6 +26,7 @@ import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useI18n } from '@/context/I18nContext'
+import { useStablecoinConversion } from '@/hooks/useStablecoinConversion'
 
 interface Account {
   id: string
@@ -55,6 +56,7 @@ type OpenAccountFormData = z.infer<typeof openAccountSchema>
 export function AccountsList() {
   const { user } = useAuth()
   const { t } = useI18n()
+  const { preferredCurrency, formatTokens: formatTokenAmount, formatConvertedTokens } = useStablecoinConversion()
   const [accounts, setAccounts] = useState<Account[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
@@ -219,14 +221,6 @@ export function AccountsList() {
       return matchesSearch && matchesStatus && matchesType
     })
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency: 'INR',
-      maximumFractionDigits: 0,
-    }).format(amount)
-  }
-
   const getStatusBadgeVariant = (status: string) => {
     switch (status) {
       case 'ACTIVE':
@@ -354,7 +348,7 @@ export function AccountsList() {
                   name="principalAmount"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Principal Amount (₹)</FormLabel>
+                      <FormLabel>{t('calculator.principalTokens')}</FormLabel>
                       <FormControl>
                         <Input type="number" value={field.value} onChange={(e) => field.onChange(Number(e.target.value))} />
                       </FormControl>
@@ -521,9 +515,12 @@ export function AccountsList() {
                       <DollarSign className="h-4 w-4" />
                       {t('accounts.card.currentBalance')}
                     </div>
-                    <p className="text-xl font-bold">
-                      {formatCurrency(account.balance)}
-                    </p>
+                    <div className="flex flex-col text-xl font-bold">
+                      <span>{formatTokenAmount(account.balance)}</span>
+                      <span className="text-sm text-muted-foreground">
+                        {formatConvertedTokens(account.balance, preferredCurrency)}
+                      </span>
+                    </div>
                   </div>
                   <div className="space-y-1">
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -541,9 +538,12 @@ export function AccountsList() {
                     <DollarSign className="h-4 w-4" />
                     {t('accounts.card.principal')}
                   </div>
-                  <p className="text-sm">
-                    {formatCurrency(account.principalAmount)}
-                  </p>
+                  <div className="flex flex-col text-sm">
+                    <span>{formatTokenAmount(account.principalAmount)}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {formatConvertedTokens(account.principalAmount, preferredCurrency)}
+                    </span>
+                  </div>
                 </div>
 
                 <div className="space-y-2">
