@@ -2,7 +2,7 @@ import axios from 'axios'
 import { jwtDecode } from 'jwt-decode'
 
 export const api = axios.create({
-  baseURL: 'http://localhost:8080',
+  baseURL: import.meta.env.DEV ? '' : 'http://localhost:8080',
   headers: {
     'Content-Type': 'application/json',
   },
@@ -38,7 +38,7 @@ api.interceptors.request.use((config) => {
       if (decoded?.sub && !hasHeader) {
         config.headers['X-User-Id'] = decoded.sub
       }
-    } catch {}
+    } catch { }
   }
   return config
 })
