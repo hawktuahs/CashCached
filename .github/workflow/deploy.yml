@@ -1,0 +1,101 @@
+name: Deploy CashCached to Azure
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+permissions:
+  id-token: write   # for OIDC
+  contents: read
+
+env:
+  AZURE_RESOURCE_GROUP: cashcached-rg
+  AZURE_WEBAPP_NAME: cashcached-api
+  AZURE_SWA_NAME: cashcached-frontend
+  JAVA_VERSION: "17"
+  NODE_VERSION: "20"
+
+jobs:
+  backend:
+    name: Build & Deploy Backend (Spring)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - name: Build (Maven)
+        run: |
+          mvn -B -DskipTests package
+        # adjust to gradle if needed
+
+      - name: Login to Azure (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Push App Settings (secrets) to App Service
+        run: |
+          az webapp config appsettings set \
+            --resource-group "${{ env.AZURE_RESOURCE_GROUP }}" \
+            --name "${{ env.AZURE_WEBAPP_NAME }}" \
+            --settings \
+              POLYGON_AMOY_RPC_URL='${{ secrets.POLYGON_AMOY_RPC_URL }}' \
+              TREASURY_PRIVATE_KEY='${{ secrets.TREASURY_PRIVATE_KEY }}' \
+              CASHCACHED_OWNER_ADDRESS='${{ secrets.CASHCACHED_OWNER_ADDRESS }}' \
+              CASHCACHED_CONTRACT_ADDRESS='${{ secrets.CASHCACHED_CONTRACT_ADDRESS }}' \
+              CASHCACHED_TREASURY_ADDRESS='${{ secrets.CASHCACHED_TREASURY_ADDRESS }}' \
+              SPRING_MAIL_HOST='${{ secrets.SPRING_MAIL_HOST }}' \
+              SPRING_MAIL_PORT='${{ secrets.SPRING_MAIL_PORT }}' \
+              SPRING_MAIL_USERNAME='${{ secrets.SPRING_MAIL_USERNAME }}' \
+              SPRING_MAIL_PASSWORD='${{ secrets.SPRING_MAIL_PASSWORD }}' \
+              SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH='${{ secrets.SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH }}' \
+              SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE='${{ secrets.SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE }}'
+
+      - name: Deploy JAR/WAR to App Service
+        uses: azure/webapps-deploy@v2
+        with:
+          app-name: ${{ env.AZURE_WEBAPP_NAME }}
+          package: |
+            $(ls -1 target/*.jar 2>/dev/null || true)
+            $(ls -1 target/*.war 2>/dev/null || true)
+
+      - name: Logout
+        if: always()
+        run: az logout
+
+  frontend:
+    name: Build & Deploy Frontend (Vite → Static Web Apps)
+    runs-on: ubuntu-latest
+    needs: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install & Build
+        working-directory: ./frontend
+        env:
+          VITE_GEMINI_API_KEY: ${{ secrets.VITE_GEMINI_API_KEY }}
+        run: |
+          npm ci
+          npm run build
+
+      - name: Deploy to Azure Static Web Apps
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
+          app_location: "frontend"
+          output_location: "dist"
+          # If you have an API (Functions), set api_location
+
