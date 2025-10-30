@@ -245,7 +245,7 @@ public class AccountService {
                 .timestamp(LocalDateTime.now())
                 .build();
 
-        requestResponseStore.putRequest(requestId, true);
+        requestResponseStore.putRequest(requestId, null);
         kafkaProducerService.sendCustomerValidationRequest(request);
 
         try {
@@ -273,7 +273,7 @@ public class AccountService {
                 .timestamp(LocalDateTime.now())
                 .build();
 
-        requestResponseStore.putRequest(requestId, true);
+        requestResponseStore.putRequest(requestId, null);
         kafkaProducerService.sendProductDetailsRequest(request);
 
         try {
@@ -346,7 +346,7 @@ public class AccountService {
                 .timestamp(LocalDateTime.now())
                 .build();
 
-        requestResponseStore.putRequest(requestId, true);
+        requestResponseStore.putRequest(requestId, null);
         kafkaProducerService.sendFdCalculationRequest(event);
 
         try {

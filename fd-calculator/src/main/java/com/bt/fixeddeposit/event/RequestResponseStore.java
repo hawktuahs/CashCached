@@ -13,9 +13,10 @@ import java.util.concurrent.TimeUnit;
 public class RequestResponseStore {
     private final Map<String, Object> store = new ConcurrentHashMap<>();
     private final Map<String, Long> timestamps = new ConcurrentHashMap<>();
+    private static final Object PENDING_MARKER = new Object();
 
     public void putRequest(String requestId, Object request) {
-        store.put(requestId, request);
+        store.put(requestId, PENDING_MARKER);
         timestamps.put(requestId, System.currentTimeMillis());
     }
 
@@ -23,7 +24,9 @@ public class RequestResponseStore {
         long endTime = System.currentTimeMillis() + unit.toMillis(timeout);
         while (System.currentTimeMillis() < endTime) {
             Object response = store.get(requestId);
-            if (response != null && !(response instanceof Boolean && (Boolean) response == null)) {
+            if (response != null && response != PENDING_MARKER) {
+                store.remove(requestId);
+                timestamps.remove(requestId);
                 return response;
             }
             Thread.sleep(100);

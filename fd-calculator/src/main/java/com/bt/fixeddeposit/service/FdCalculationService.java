@@ -115,6 +115,7 @@ public class FdCalculationService {
 
     private void validateCustomer(Long customerId) {
         try {
+            log.info("============ VALIDATING CUSTOMER {} ============", customerId);
             String requestId = UUID.randomUUID().toString();
             CustomerValidationRequest request = CustomerValidationRequest.builder()
                     .customerId(customerId)
@@ -122,19 +123,34 @@ public class FdCalculationService {
                     .timestamp(LocalDateTime.now())
                     .build();
 
-            requestResponseStore.putRequest(requestId, true);
+            log.info("Storing pending request with ID: {}", requestId);
+            requestResponseStore.putRequest(requestId, null);
+
+            log.info("Sending customer validation request via Kafka: requestId={}, customerId={}",
+                    requestId, customerId);
             kafkaProducerService.sendCustomerValidationRequest(request);
 
+            log.info("Waiting for customer validation response (timeout: {} seconds)...", requestTimeoutSeconds);
             CustomerValidationResponse response = (CustomerValidationResponse) requestResponseStore
                     .getResponse(requestId, requestTimeoutSeconds, TimeUnit.SECONDS);
 
+            log.info("Received customer validation response: response={}, valid={}, active={}",
+                    response != null ? "present" : "NULL",
+                    response != null ? response.getValid() : "N/A",
+                    response != null ? response.getActive() : "N/A");
+
             if (response == null || !Boolean.TRUE.equals(response.getValid())) {
+                log.error("Customer validation FAILED: response null or invalid. Throwing CustomerNotFoundException");
                 throw new CustomerNotFoundException("Customer not found with ID: " + customerId);
             }
 
             if (!Boolean.TRUE.equals(response.getActive())) {
+                log.error("Customer account is INACTIVE. Throwing InvalidCalculationDataException");
                 throw new InvalidCalculationDataException("Customer account is not active");
             }
+
+            log.info("Customer validation SUCCESSFUL for ID: {}", customerId);
+            log.info("============ VALIDATION COMPLETE ============");
         } catch (InterruptedException e) {
             log.error("Interrupted while validating customer with ID: {}", customerId, e);
             throw new ServiceIntegrationException("Failed to validate customer information", e);
@@ -150,7 +166,7 @@ public class FdCalculationService {
                     .timestamp(LocalDateTime.now())
                     .build();
 
-            requestResponseStore.putRequest(requestId, true);
+            requestResponseStore.putRequest(requestId, null);
             kafkaProducerService.sendProductDetailsRequest(request);
 
             ProductDetailsResponse response = (ProductDetailsResponse) requestResponseStore
