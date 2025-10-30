@@ -5,23 +5,33 @@ on:
     branches: [ "main" ]
   workflow_dispatch:
 
+# Needed for Azure OIDC
 permissions:
-  id-token: write   # for OIDC
+  id-token: write
   contents: read
 
+concurrency:
+  group: cashcached-deploy
+  cancel-in-progress: false
+
 env:
-  AZURE_RESOURCE_GROUP: cashcached-rg
+  # AZURE (already created by you)
+  AZURE_RESOURCE_GROUP: cashcached1-rg
   AZURE_WEBAPP_NAME: cashcached-api
+  # STATIC WEB APPS
   AZURE_SWA_NAME: cashcached-frontend
+  # RUNTIME VERSIONS
   JAVA_VERSION: "17"
   NODE_VERSION: "20"
 
 jobs:
   backend:
-    name: Build & Deploy Backend (Spring)
+    name: Build & Deploy Backend (Spring Gateway in /main)
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -29,19 +39,27 @@ jobs:
           distribution: temurin
           java-version: ${{ env.JAVA_VERSION }}
 
-      - name: Build (Maven)
-        run: |
-          mvn -B -DskipTests package
-        # adjust to gradle if needed
+      - name: Cache Maven
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.m2/repository
+          key: maven-${{ runner.os }}-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            maven-${{ runner.os }}-
 
-      - name: Login to Azure (OIDC)
+      - name: Build (Maven) - main service
+        working-directory: ./main
+        run: mvn -B -DskipTests package
+
+      - name: Azure login (OIDC)
         uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Push App Settings (secrets) to App Service
+      - name: Push App Settings to App Service
         run: |
           az webapp config appsettings set \
             --resource-group "${{ env.AZURE_RESOURCE_GROUP }}" \
@@ -59,33 +77,38 @@ jobs:
               SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH='${{ secrets.SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH }}' \
               SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE='${{ secrets.SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE }}'
 
-      - name: Deploy JAR/WAR to App Service
+      - name: Deploy JAR to App Service
         uses: azure/webapps-deploy@v2
         with:
           app-name: ${{ env.AZURE_WEBAPP_NAME }}
-          package: |
-            $(ls -1 target/*.jar 2>/dev/null || true)
-            $(ls -1 target/*.war 2>/dev/null || true)
-
-      - name: Logout
-        if: always()
-        run: az logout
+          package: main/target/*.jar
 
   frontend:
-    name: Build & Deploy Frontend (Vite → Static Web Apps)
+    name: Build & Deploy Frontend (Vite in /main/frontend → SWA)
     runs-on: ubuntu-latest
     needs: backend
-    steps:
-      - uses: actions/checkout@v4
 
-      - name: Use Node
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
 
+      - name: Cache npm
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: npm-${{ runner.os }}-${{ hashFiles('main/frontend/package-lock.json') }}
+          restore-keys: |
+            npm-${{ runner.os }}-
+
       - name: Install & Build
-        working-directory: ./frontend
+        working-directory: ./main/frontend
         env:
+          # Only include if safe for client-side; otherwise proxy via backend
           VITE_GEMINI_API_KEY: ${{ secrets.VITE_GEMINI_API_KEY }}
         run: |
           npm ci
@@ -95,7 +118,5 @@ jobs:
         uses: Azure/static-web-apps-deploy@v1
         with:
           azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
-          app_location: "frontend"
+          app_location: "main/frontend"
           output_location: "dist"
-          # If you have an API (Functions), set api_location
-
