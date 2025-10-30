@@ -47,4 +47,13 @@ public class KafkaProducerService {
             log.error("Failed to send product details response for request: {}", response.getRequestId(), e);
         }
     }
+
+    public void sendFdCalculationResponse(FdCalculationResponseEvent response) {
+        try {
+            kafkaTemplate.send(KafkaTopics.FD_CALCULATION_RESPONSE, response.getRequestId(), response);
+            log.info("FD calculation response sent for request: {}", response.getRequestId());
+        } catch (Exception e) {
+            log.error("Failed to send FD calculation response for request: {}", response.getRequestId(), e);
+        }
+    }
 }

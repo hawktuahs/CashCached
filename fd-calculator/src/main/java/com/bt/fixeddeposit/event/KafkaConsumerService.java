@@ -1,10 +1,14 @@
 package com.bt.fixeddeposit.event;
 
+import com.bt.fixeddeposit.dto.FdCalculationRequest;
+import com.bt.fixeddeposit.service.FdCalculationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Service;
+
+import java.time.LocalDateTime;
 
 @Service
 @RequiredArgsConstructor
@@ -12,6 +16,8 @@ import org.springframework.stereotype.Service;
 public class KafkaConsumerService {
 
     private final RequestResponseStore requestResponseStore;
+    private final FdCalculationService fdCalculationService;
+    private final KafkaProducerService kafkaProducerService;
 
     @KafkaListener(topics = "customer.validation.response", groupId = "fd-customer-response-consumer", containerFactory = "customerValidationKafkaListenerContainerFactory")
     public void handleCustomerValidationResponse(@Payload CustomerValidationResponse response) {
@@ -48,6 +54,63 @@ public class KafkaConsumerService {
             }
         } catch (Exception e) {
             log.error("Error processing product details response", e);
+        }
+    }
+
+    @KafkaListener(topics = "fd.calculation.request", groupId = "fd-calculation-consumer")
+    public void handleFdCalculationRequest(@Payload FdCalculationRequestEvent request) {
+        try {
+            log.info("============ FD CALCULATION REQUEST RECEIVED ============");
+            log.info("Request ID: {}, Customer ID: {}, Product: {}, Principal: {}, Tenure: {} months",
+                    request.getRequestId(), request.getCustomerId(), request.getProductCode(),
+                    request.getPrincipalAmount(), request.getTenureMonths());
+
+            if (request == null || request.getRequestId() == null) {
+                log.error("Invalid FD calculation request - null request or null requestId");
+                return;
+            }
+
+            // Convert event to service request
+            FdCalculationRequest calcRequest = new FdCalculationRequest();
+            calcRequest.setCustomerId(request.getCustomerId());
+            calcRequest.setProductCode(request.getProductCode());
+            calcRequest.setPrincipalAmount(request.getPrincipalAmount());
+            calcRequest.setTenureMonths(request.getTenureMonths());
+
+            // Perform calculation
+            var calcResponse = fdCalculationService.calculateFd(calcRequest, null);
+
+            // Build response event
+            FdCalculationResponseEvent response = FdCalculationResponseEvent.builder()
+                    .requestId(request.getRequestId())
+                    .calculationId(calcResponse.getId())
+                    .customerId(request.getCustomerId())
+                    .productCode(request.getProductCode())
+                    .principalAmount(calcResponse.getPrincipalAmount())
+                    .maturityAmount(calcResponse.getMaturityAmount())
+                    .interestEarned(calcResponse.getInterestEarned())
+                    .effectiveRate(calcResponse.getEffectiveRate())
+                    .tenureMonths(calcResponse.getTenureMonths())
+                    .timestamp(LocalDateTime.now())
+                    .build();
+
+            kafkaProducerService.sendFdCalculationResponse(response);
+            log.info("FD calculation response sent successfully for request: {}", request.getRequestId());
+            log.info("============ FD CALCULATION REQUEST PROCESSED ============");
+        } catch (Exception e) {
+            log.error("Error processing FD calculation request for requestId: {}",
+                    request != null ? request.getRequestId() : "unknown", e);
+
+            // Send error response
+            FdCalculationResponseEvent errorResponse = FdCalculationResponseEvent.builder()
+                    .requestId(request != null ? request.getRequestId() : "unknown")
+                    .customerId(request != null ? request.getCustomerId() : null)
+                    .productCode(request != null ? request.getProductCode() : null)
+                    .error(e.getMessage())
+                    .timestamp(LocalDateTime.now())
+                    .build();
+
+            kafkaProducerService.sendFdCalculationResponse(errorResponse);
         }
     }
 }

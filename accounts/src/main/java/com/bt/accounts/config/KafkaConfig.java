@@ -131,6 +131,7 @@ public class KafkaConfig {
                 JsonSerializer.class);
         configProps.put(org.apache.kafka.clients.producer.ProducerConfig.ACKS_CONFIG, "all");
         configProps.put(org.apache.kafka.clients.producer.ProducerConfig.RETRIES_CONFIG, 3);
+        configProps.put(JsonSerializer.ADD_TYPE_INFO_HEADERS, false);
         return new DefaultKafkaProducerFactory<>(configProps);
     }
 
@@ -147,9 +148,12 @@ public class KafkaConfig {
         props.put(org.apache.kafka.clients.consumer.ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG,
                 StringDeserializer.class);
         props.put(org.apache.kafka.clients.consumer.ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG,
-                JsonDeserializer.class);
+                ErrorHandlingDeserializer.class);
+        props.put(ErrorHandlingDeserializer.VALUE_DESERIALIZER_CLASS,
+                JsonDeserializer.class.getName());
         props.put(org.apache.kafka.clients.consumer.ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
-        props.put(JsonDeserializer.VALUE_DEFAULT_TYPE, "com.bt.accounts.event.CustomerValidationResponse");
+        props.put(JsonDeserializer.USE_TYPE_INFO_HEADERS, false);
+        props.put(JsonDeserializer.VALUE_DEFAULT_TYPE, Object.class.getName());
         props.put(JsonDeserializer.TRUSTED_PACKAGES, "*");
         return new DefaultKafkaConsumerFactory<>(props);
     }
