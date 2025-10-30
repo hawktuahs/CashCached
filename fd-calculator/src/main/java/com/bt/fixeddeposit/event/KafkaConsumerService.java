@@ -57,7 +57,7 @@ public class KafkaConsumerService {
         }
     }
 
-    @KafkaListener(topics = "fd.calculation.request", groupId = "fd-calculation-consumer")
+    @KafkaListener(topics = "fd.calculation.request", groupId = "fd-calculation-consumer", containerFactory = "fdCalculationRequestKafkaListenerContainerFactory")
     public void handleFdCalculationRequest(@Payload FdCalculationRequestEvent request) {
         try {
             log.info("============ FD CALCULATION REQUEST RECEIVED ============");

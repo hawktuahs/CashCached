@@ -12,21 +12,42 @@ public class KafkaConsumerService {
 
     private final RequestResponseStore requestResponseStore;
 
-    @KafkaListener(topics = "customer.validation.response", groupId = "accounts-customer-validator")
+    @KafkaListener(topics = "customer.validation.response", groupId = "accounts-customer-validator", containerFactory = "customerValidationKafkaListenerContainerFactory")
     public void handleCustomerValidationResponse(CustomerValidationResponse response) {
-        log.info("Received customer validation response for request: {}", response.getRequestId());
-        requestResponseStore.putResponse(response.getRequestId(), response);
+        log.info("========== ACCOUNTS: Received customer validation response ==========");
+        log.info("RequestId: {}, CustomerId: {}, Valid: {}, Active: {}",
+                response != null ? response.getRequestId() : "null",
+                response != null ? response.getCustomerId() : "null",
+                response != null ? response.getValid() : "null",
+                response != null ? response.getActive() : "null");
+
+        if (response != null && response.getRequestId() != null) {
+            requestResponseStore.putResponse(response.getRequestId(), response);
+            log.info("Response stored for requestId: {}", response.getRequestId());
+        } else {
+            log.error("Invalid response - null or missing requestId!");
+        }
     }
 
-    @KafkaListener(topics = "product.details.response", groupId = "accounts-product-details")
+    @KafkaListener(topics = "product.details.response", groupId = "accounts-product-details", containerFactory = "productDetailsKafkaListenerContainerFactory")
     public void handleProductDetailsResponse(ProductDetailsResponse response) {
-        log.info("Received product details response for request: {}", response.getRequestId());
-        requestResponseStore.putResponse(response.getRequestId(), response);
+        log.info("========== ACCOUNTS: Received product details response ==========");
+        log.info("RequestId: {}", response != null ? response.getRequestId() : "null");
+
+        if (response != null && response.getRequestId() != null) {
+            requestResponseStore.putResponse(response.getRequestId(), response);
+            log.info("Response stored for requestId: {}", response.getRequestId());
+        }
     }
 
-    @KafkaListener(topics = "fd.calculation.response", groupId = "accounts-fd-calculation")
+    @KafkaListener(topics = "fd.calculation.response", groupId = "accounts-fd-calculation", containerFactory = "fdCalculationKafkaListenerContainerFactory")
     public void handleFdCalculationResponse(FdCalculationResponseEvent response) {
-        log.info("Received FD calculation response for request: {}", response.getRequestId());
-        requestResponseStore.putResponse(response.getRequestId(), response);
+        log.info("========== ACCOUNTS: Received FD calculation response ==========");
+        log.info("RequestId: {}", response != null ? response.getRequestId() : "null");
+
+        if (response != null && response.getRequestId() != null) {
+            requestResponseStore.putResponse(response.getRequestId(), response);
+            log.info("Response stored for requestId: {}", response.getRequestId());
+        }
     }
 }

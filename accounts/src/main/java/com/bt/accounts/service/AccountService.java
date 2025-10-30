@@ -239,28 +239,41 @@ public class AccountService {
 
     private CustomerDto validateCustomer(String customerId, String authToken) {
         String requestId = UUID.randomUUID().toString();
+        log.info("========== VALIDATING CUSTOMER {} ==========", customerId);
+        log.info("Generated requestId: {}", requestId);
+
         CustomerValidationRequest request = CustomerValidationRequest.builder()
                 .customerId(Long.parseLong(customerId))
                 .requestId(requestId)
                 .timestamp(LocalDateTime.now())
                 .build();
 
+        log.info("Storing pending request with requestId: {}", requestId);
         requestResponseStore.putRequest(requestId, null);
+
+        log.info("Sending customer validation request to Kafka...");
         kafkaProducerService.sendCustomerValidationRequest(request);
+        log.info("Request sent. Now waiting for response (timeout: {} seconds)...", requestTimeoutSeconds);
 
         try {
             CustomerValidationResponse response = (CustomerValidationResponse) requestResponseStore
                     .getResponse(requestId, requestTimeoutSeconds, TimeUnit.SECONDS);
 
+            log.info("========== RESPONSE RECEIVED ==========");
+            log.info("Response: {}", response != null ? "NOT NULL" : "NULL");
+
             if (response == null || !Boolean.TRUE.equals(response.getValid())) {
+                log.error("Customer validation FAILED - response null or invalid");
                 throw new CustomerNotFoundException("Customer not found or invalid: " + customerId);
             }
 
+            log.info("Customer validation SUCCESSFUL");
             CustomerDto dto = new CustomerDto();
             dto.setId(response.getCustomerId());
             return dto;
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
+            log.error("Customer validation INTERRUPTED");
             throw new ServiceIntegrationException("Customer validation request timeout", e);
         }
     }
