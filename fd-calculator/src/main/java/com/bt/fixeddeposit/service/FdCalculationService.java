@@ -1,16 +1,17 @@
 package com.bt.fixeddeposit.service;
 
-import com.bt.fixeddeposit.client.CustomerServiceClient;
-import com.bt.fixeddeposit.client.ProductServiceClient;
 import com.bt.fixeddeposit.dto.FdCalculationRequest;
 import com.bt.fixeddeposit.dto.FdCalculationResponse;
-import com.bt.fixeddeposit.dto.external.CustomerResponse;
-import com.bt.fixeddeposit.dto.external.ExternalApiResponse;
 import com.bt.fixeddeposit.dto.external.ProductResponse;
 import com.bt.fixeddeposit.entity.FdCalculation;
+import com.bt.fixeddeposit.event.CustomerValidationRequest;
+import com.bt.fixeddeposit.event.CustomerValidationResponse;
+import com.bt.fixeddeposit.event.KafkaProducerService;
+import com.bt.fixeddeposit.event.ProductDetailsRequest;
+import com.bt.fixeddeposit.event.ProductDetailsResponse;
+import com.bt.fixeddeposit.event.RequestResponseStore;
 import com.bt.fixeddeposit.exception.*;
 import com.bt.fixeddeposit.repository.FdCalculationRepository;
-import feign.FeignException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -20,6 +21,8 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 @Service
@@ -28,8 +31,8 @@ import java.util.stream.Collectors;
 public class FdCalculationService {
 
     private final FdCalculationRepository calculationRepository;
-    private final CustomerServiceClient customerServiceClient;
-    private final ProductServiceClient productServiceClient;
+    private final KafkaProducerService kafkaProducerService;
+    private final RequestResponseStore requestResponseStore;
 
     @Value("${app.calculation.default-compounding-frequency}")
     private Integer defaultCompoundingFrequency;
@@ -37,13 +40,16 @@ public class FdCalculationService {
     @Value("${app.calculation.rounding-scale}")
     private Integer roundingScale;
 
+    @Value("${app.kafka.request-timeout-seconds:30}")
+    private long requestTimeoutSeconds;
+
     @Transactional
     public FdCalculationResponse calculateFd(FdCalculationRequest request, String authToken) {
         log.info("Processing FD calculation request for customer: {} and product: {}",
                 request.getCustomerId(), request.getProductCode());
 
-        validateCustomer(request.getCustomerId(), authToken);
-        ProductResponse product = fetchProductDetails(request.getProductCode(), authToken);
+        validateCustomer(request.getCustomerId());
+        ProductResponse product = fetchProductDetails(request.getProductCode());
         validateCalculationRequest(request, product);
 
         Integer compoundingFrequency = resolveCompoundingFrequency(request, product);
@@ -81,78 +87,114 @@ public class FdCalculationService {
         FdCalculation calculation = calculationRepository.findById(id)
                 .orElseThrow(() -> new CalculationNotFoundException("Calculation not found with ID: " + id));
 
-        ProductResponse product = fetchProductDetails(calculation.getProductCode(), authToken);
+        ProductResponse product = fetchProductDetails(calculation.getProductCode());
         return buildCalculationResponse(calculation, product.getProductName());
     }
 
     @Transactional(readOnly = true)
     public List<FdCalculationResponse> getCalculationHistory(Long customerId, String authToken) {
-        validateCustomer(customerId, authToken);
+        validateCustomer(customerId);
         List<FdCalculation> calculations = calculationRepository.findByCustomerIdOrderByCreatedAtDesc(customerId);
 
         return calculations.stream()
-                .map(calc -> buildCalculationResponse(calc, fetchProductNameSafely(calc.getProductCode(), authToken)))
+                .map(calc -> buildCalculationResponse(calc, fetchProductNameSafely(calc.getProductCode())))
                 .collect(Collectors.toList());
     }
 
     @Transactional(readOnly = true)
     public List<FdCalculationResponse> getRecentCalculations(Long customerId, Integer days, String authToken) {
-        validateCustomer(customerId, authToken);
+        validateCustomer(customerId);
         LocalDateTime startDate = LocalDateTime.now().minusDays(days);
         List<FdCalculation> calculations = calculationRepository.findRecentCalculationsByCustomer(customerId,
                 startDate);
 
         return calculations.stream()
-                .map(calc -> buildCalculationResponse(calc, fetchProductNameSafely(calc.getProductCode(), authToken)))
+                .map(calc -> buildCalculationResponse(calc, fetchProductNameSafely(calc.getProductCode())))
                 .collect(Collectors.toList());
     }
 
-    private void validateCustomer(Long customerId, String authToken) {
+    private void validateCustomer(Long customerId) {
         try {
-            ExternalApiResponse<CustomerResponse> response = customerServiceClient.getCustomerById(customerId,
-                    authToken);
-            if (response == null || !Boolean.TRUE.equals(response.getSuccess()) || response.getData() == null) {
+            String requestId = UUID.randomUUID().toString();
+            CustomerValidationRequest request = CustomerValidationRequest.builder()
+                    .customerId(customerId)
+                    .requestId(requestId)
+                    .timestamp(LocalDateTime.now())
+                    .build();
+
+            requestResponseStore.putRequest(requestId, true);
+            kafkaProducerService.sendCustomerValidationRequest(request);
+
+            CustomerValidationResponse response = (CustomerValidationResponse) requestResponseStore
+                    .getResponse(requestId, requestTimeoutSeconds, TimeUnit.SECONDS);
+
+            if (response == null || !Boolean.TRUE.equals(response.getValid())) {
                 throw new CustomerNotFoundException("Customer not found with ID: " + customerId);
             }
 
-            CustomerResponse customer = response.getData();
-            if (!Boolean.TRUE.equals(customer.getActive())) {
+            if (!Boolean.TRUE.equals(response.getActive())) {
                 throw new InvalidCalculationDataException("Customer account is not active");
             }
-        } catch (FeignException e) {
-            log.error("Failed to validate customer with ID: {}", customerId, e);
+        } catch (InterruptedException e) {
+            log.error("Interrupted while validating customer with ID: {}", customerId, e);
             throw new ServiceIntegrationException("Failed to validate customer information", e);
         }
     }
 
-    private ProductResponse fetchProductDetails(String productCode, String authToken) {
+    private ProductResponse fetchProductDetails(String productCode) {
         try {
-            ExternalApiResponse<ProductResponse> response = productServiceClient.getProductByCode(productCode,
-                    authToken);
-            if (response == null || !Boolean.TRUE.equals(response.getSuccess()) || response.getData() == null) {
+            String requestId = UUID.randomUUID().toString();
+            ProductDetailsRequest request = ProductDetailsRequest.builder()
+                    .productCode(productCode)
+                    .requestId(requestId)
+                    .timestamp(LocalDateTime.now())
+                    .build();
+
+            requestResponseStore.putRequest(requestId, true);
+            kafkaProducerService.sendProductDetailsRequest(request);
+
+            ProductDetailsResponse response = (ProductDetailsResponse) requestResponseStore
+                    .getResponse(requestId, requestTimeoutSeconds, TimeUnit.SECONDS);
+
+            if (response == null || response.getProductId() == null) {
                 throw new ProductNotFoundException("Product not found with code: " + productCode);
             }
 
-            ProductResponse product = response.getData();
-            if (!"ACTIVE".equals(product.getStatus())) {
+            if (!"ACTIVE".equals(response.getStatus())) {
                 throw new InvalidCalculationDataException("Product is not active: " + productCode);
             }
 
-            return product;
-        } catch (FeignException e) {
-            log.error("Failed to fetch product details for code: {}", productCode, e);
+            return convertToProductResponse(response);
+        } catch (InterruptedException e) {
+            log.error("Interrupted while fetching product details for code: {}", productCode, e);
             throw new ServiceIntegrationException("Failed to fetch product information", e);
         }
     }
 
-    private String fetchProductNameSafely(String productCode, String authToken) {
+    private String fetchProductNameSafely(String productCode) {
         try {
-            ProductResponse product = fetchProductDetails(productCode, authToken);
+            ProductResponse product = fetchProductDetails(productCode);
             return product.getProductName();
         } catch (Exception e) {
             log.warn("Failed to fetch product name for code: {}", productCode);
             return productCode;
         }
+    }
+
+    private ProductResponse convertToProductResponse(ProductDetailsResponse response) {
+        return ProductResponse.builder()
+                .id(response.getProductId())
+                .productCode(response.getProductCode())
+                .productName(response.getProductName())
+                .status(response.getStatus())
+                .minAmount(response.getMinAmount())
+                .maxAmount(response.getMaxAmount())
+                .minTermMonths(response.getMinTermMonths())
+                .maxTermMonths(response.getMaxTermMonths())
+                .minInterestRate(response.getMinInterestRate())
+                .maxInterestRate(response.getMaxInterestRate())
+                .currency(response.getCurrency())
+                .build();
     }
 
     private void validateCalculationRequest(FdCalculationRequest request, ProductResponse product) {
@@ -220,7 +262,8 @@ public class FdCalculationService {
     }
 
     private Integer resolveCompoundingFrequency(FdCalculationRequest request, ProductResponse product) {
-        if (request.getCompoundingFrequency() != null) return request.getCompoundingFrequency();
+        if (request.getCompoundingFrequency() != null)
+            return request.getCompoundingFrequency();
         if (product != null && product.getCompoundingFrequency() != null) {
             String f = product.getCompoundingFrequency().toUpperCase();
             switch (f) {

@@ -19,7 +19,6 @@ import org.springframework.web.client.RestTemplate;
 
 import com.bt.accounts.blockchain.CashCachedContract;
 import com.bt.accounts.config.CashCachedProperties;
-import com.bt.accounts.client.CustomerServiceClient;
 import com.bt.accounts.dto.CashCachedBalanceResponse;
 import com.bt.accounts.dto.CashCachedIssueRequest;
 import com.bt.accounts.dto.CashCachedRedeemRequest;
@@ -48,7 +47,6 @@ public class CashCachedService {
     private final CashCachedProperties properties;
     private final CashCachedLedgerRepository ledgerRepository;
     private final CashCachedWalletRepository walletRepository;
-    private final CustomerServiceClient customerServiceClient;
 
     private final AtomicReference<Integer> decimalsCache = new AtomicReference<>();
     private final RestTemplate restTemplate = new RestTemplate();
@@ -383,17 +381,6 @@ public class CashCachedService {
     private String resolvePreferredCurrency(String authToken, String customerId) {
         if (authToken == null || authToken.isBlank()) {
             return properties.getBaseCurrency();
-        }
-        try {
-            Map<String, Object> profile = customerServiceClient.getCurrentProfile(authToken);
-            Object preferred = profile != null ? profile.get("preferredCurrency") : null;
-            if (preferred != null) {
-                String code = preferred.toString().trim().toUpperCase();
-                if (!code.isEmpty()) {
-                    return code;
-                }
-            }
-        } catch (Exception ignored) {
         }
         return properties.getBaseCurrency();
     }

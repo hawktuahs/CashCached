@@ -1,19 +1,15 @@
 package com.bt.accounts.service;
 
 import com.bt.accounts.client.ProductDto;
-import com.bt.accounts.client.ProductServiceClient;
 import com.bt.accounts.dto.PricingRuleDto;
 import com.bt.accounts.entity.FdAccount;
 import com.bt.accounts.exception.ServiceIntegrationException;
-import feign.FeignException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.Collections;
 import java.util.List;
-import java.util.Objects;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -22,11 +18,6 @@ import org.springframework.stereotype.Service;
 public class PricingRuleEvaluator {
 
     private static final BigDecimal ONE_HUNDRED = new BigDecimal("100");
-
-    private final ProductServiceClient productServiceClient;
-
-    @Value("${services.product.service-token:}")
-    private String productServiceToken;
 
     public EvaluationResult evaluate(FdAccount account, BigDecimal balance, String authToken) {
         try {
@@ -45,22 +36,14 @@ public class PricingRuleEvaluator {
             BigDecimal rate = resolveRate(account.getBaseInterestRate(), matched);
             BigDecimal fee = resolveFee(matched);
             return EvaluationResult.ruleMatched(matched, rate, fee);
-        } catch (FeignException ex) {
+        } catch (Exception ex) {
             log.warn("Pricing rule evaluation failed for account {}: {}", account.getAccountNo(), ex.getMessage());
             throw new ServiceIntegrationException("Unable to evaluate pricing rules", ex);
         }
     }
 
     private List<PricingRuleDto> fetchRules(FdAccount account, String token) {
-        Long productId = account.getProductRefId();
-        if (productId != null) {
-            return unwrap(productServiceClient.getActivePricingRules(productId, token));
-        }
-        ProductDto product = unwrap(productServiceClient.getProductByCode(account.getProductCode(), token));
-        if (product == null || product.getId() == null) {
-            return Collections.emptyList();
-        }
-        return unwrap(productServiceClient.getActivePricingRules(product.getId(), token));
+        return Collections.emptyList();
     }
 
     private boolean matches(PricingRuleDto rule, BigDecimal balance) {
@@ -78,7 +61,8 @@ public class PricingRuleEvaluator {
             return rule.getInterestRate().setScale(2, RoundingMode.HALF_UP);
         }
         if (rule.getDiscountPercentage() != null && rule.getDiscountPercentage().compareTo(BigDecimal.ZERO) > 0) {
-            BigDecimal discount = baseRate.multiply(rule.getDiscountPercentage()).divide(ONE_HUNDRED, 4, RoundingMode.HALF_UP);
+            BigDecimal discount = baseRate.multiply(rule.getDiscountPercentage()).divide(ONE_HUNDRED, 4,
+                    RoundingMode.HALF_UP);
             BigDecimal adjusted = baseRate.subtract(discount);
             if (adjusted.compareTo(BigDecimal.ZERO) < 0) {
                 return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
@@ -99,17 +83,7 @@ public class PricingRuleEvaluator {
         if (authToken != null && !authToken.isBlank()) {
             return authToken;
         }
-        if (productServiceToken != null && !productServiceToken.isBlank()) {
-            return productServiceToken;
-        }
-        throw new ServiceIntegrationException("Missing authorization token for Product Service call");
-    }
-
-    private <T> T unwrap(com.bt.accounts.dto.ApiResponse<T> response) {
-        if (response == null) {
-            return null;
-        }
-        return response.getData();
+        throw new ServiceIntegrationException("Missing authorization token");
     }
 
     public static final class EvaluationResult {

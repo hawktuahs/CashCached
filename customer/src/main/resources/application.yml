@@ -32,6 +32,17 @@ spring:
           starttls:
             enable: ${SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE:true}
 
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+    consumer:
+      group-id: customer-service
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      auto-offset-reset: earliest
+      properties:
+        spring.json.trusted.packages: "*"
+
 server:
   port: 8081
   servlet:
@@ -40,20 +51,6 @@ server:
 jwt:
   secret: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
   expiration: 86400000
-
-services:
-  product:
-    url: ${PRODUCT_SERVICE_URL:http://localhost:8082}
-  fdcalculator:
-    url: ${FD_CALCULATOR_SERVICE_URL:http://localhost:8083}
-
-feign:
-  client:
-    config:
-      default:
-        connectTimeout: 5000
-        readTimeout: 5000
-        loggerLevel: basic
 
 springdoc:
   api-docs:
@@ -67,3 +64,5 @@ springdoc:
 app:
   mail:
     from: ${APP_MAIL_FROM:${spring.mail.username}}
+  kafka:
+    request-timeout-seconds: ${KAFKA_REQUEST_TIMEOUT:30}

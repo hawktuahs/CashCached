@@ -1,6 +1,5 @@
 package com.bt.accounts.exception;
 
-import feign.FeignException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
@@ -89,17 +88,6 @@ public class GlobalExceptionHandler {
                 .message(ex.getMessage())
                 .build();
         return new ResponseEntity<>(error, HttpStatus.SERVICE_UNAVAILABLE);
-    }
-
-    @ExceptionHandler(FeignException.class)
-    public ResponseEntity<ErrorResponse> handleFeignException(FeignException ex) {
-        ErrorResponse error = ErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
-                .status(ex.status())
-                .error("External Service Error")
-                .message("Failed to communicate with external service: " + ex.getMessage())
-                .build();
-        return new ResponseEntity<>(error, HttpStatus.valueOf(ex.status()));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

@@ -4,9 +4,9 @@ import com.bt.accounts.client.*;
 import com.bt.accounts.dto.*;
 import com.bt.accounts.entity.FdAccount;
 import com.bt.accounts.exception.*;
+import com.bt.accounts.event.*;
 import com.bt.accounts.repository.FdAccountRepository;
 import com.bt.accounts.repository.AccountTransactionRepository;
-import feign.FeignException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -19,6 +19,8 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.math.RoundingMode;
 
@@ -30,16 +32,15 @@ public class AccountService {
     private final FdAccountRepository accountRepository;
     private final AccountTransactionRepository transactionRepository;
     private final CashCachedService cashCachedService;
-    private final CustomerServiceClient customerServiceClient;
-    private final ProductServiceClient productServiceClient;
-    private final FdCalculatorServiceClient fdCalculatorServiceClient;
     private final AccountNumberGenerator accountNumberGenerator;
+    private final KafkaProducerService kafkaProducerService;
+    private final RequestResponseStore requestResponseStore;
 
     @Value("${accounts.sequence.prefix:FD}")
     private String accountPrefix;
 
-    @Value("${services.product.service-token:}")
-    private String productServiceToken;
+    @Value("${app.kafka.request-timeout-seconds:30}")
+    private int requestTimeoutSeconds;
 
     @Transactional
     public AccountResponse createAccount(AccountCreationRequest request, String authToken) {
@@ -107,9 +108,14 @@ public class AccountService {
             throw new InvalidAccountDataException("Cannot upgrade a closed account: " + accountNo);
         }
 
-        String newProductCode = request.get("productCode") != null ? String.valueOf(request.get("productCode")) : account.getProductCode();
-        BigDecimal newInterestRate = request.get("interestRate") != null ? new BigDecimal(String.valueOf(request.get("interestRate"))) : account.getInterestRate();
-        Integer newTenureMonths = request.get("tenureMonths") != null ? Integer.valueOf(String.valueOf(request.get("tenureMonths"))) : account.getTenureMonths();
+        String newProductCode = request.get("productCode") != null ? String.valueOf(request.get("productCode"))
+                : account.getProductCode();
+        BigDecimal newInterestRate = request.get("interestRate") != null
+                ? new BigDecimal(String.valueOf(request.get("interestRate")))
+                : account.getInterestRate();
+        Integer newTenureMonths = request.get("tenureMonths") != null
+                ? Integer.valueOf(String.valueOf(request.get("tenureMonths")))
+                : account.getTenureMonths();
         BigDecimal newPrincipal = account.getPrincipalAmount();
         if (request.get("principalAmount") != null) {
             newPrincipal = new BigDecimal(String.valueOf(request.get("principalAmount")));
@@ -228,35 +234,70 @@ public class AccountService {
         if (authToken != null && !authToken.isBlank()) {
             return authToken;
         }
-        if (productServiceToken != null && !productServiceToken.isBlank()) {
-            return productServiceToken;
-        }
-        throw new ServiceIntegrationException("Missing authorization token for Product Service call");
+        throw new ServiceIntegrationException("Missing authorization token for service call");
     }
 
     private CustomerDto validateCustomer(String customerId, String authToken) {
+        String requestId = UUID.randomUUID().toString();
+        CustomerValidationRequest request = CustomerValidationRequest.builder()
+                .customerId(Long.parseLong(customerId))
+                .requestId(requestId)
+                .timestamp(LocalDateTime.now())
+                .build();
+
+        requestResponseStore.putRequest(requestId, true);
+        kafkaProducerService.sendCustomerValidationRequest(request);
+
         try {
-            ApiResponse<CustomerDto> response = customerServiceClient.getCustomerById(customerId, authToken);
-            if (response.getData() == null) {
-                throw new CustomerNotFoundException("Customer not found: " + customerId);
+            CustomerValidationResponse response = (CustomerValidationResponse) requestResponseStore
+                    .getResponse(requestId, requestTimeoutSeconds, TimeUnit.SECONDS);
+
+            if (response == null || !Boolean.TRUE.equals(response.getValid())) {
+                throw new CustomerNotFoundException("Customer not found or invalid: " + customerId);
             }
-            return response.getData();
-        } catch (FeignException e) {
-            log.error("Failed to validate customer: {}", customerId, e);
-            throw new ServiceIntegrationException("Failed to validate customer with Customer Service", e);
+
+            CustomerDto dto = new CustomerDto();
+            dto.setId(response.getCustomerId());
+            return dto;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new ServiceIntegrationException("Customer validation request timeout", e);
         }
     }
 
     private ProductDto validateProduct(String productCode, String authToken) {
+        String requestId = UUID.randomUUID().toString();
+        ProductDetailsRequest request = ProductDetailsRequest.builder()
+                .productCode(productCode)
+                .requestId(requestId)
+                .timestamp(LocalDateTime.now())
+                .build();
+
+        requestResponseStore.putRequest(requestId, true);
+        kafkaProducerService.sendProductDetailsRequest(request);
+
         try {
-            ApiResponse<ProductDto> response = productServiceClient.getProductByCode(productCode, resolveProductServiceToken(authToken));
-            if (response.getData() == null) {
+            ProductDetailsResponse response = (ProductDetailsResponse) requestResponseStore
+                    .getResponse(requestId, requestTimeoutSeconds, TimeUnit.SECONDS);
+
+            if (response == null || response.getProductId() == null) {
                 throw new ProductNotFoundException("Product not found: " + productCode);
             }
-            return response.getData();
-        } catch (FeignException e) {
-            log.error("Failed to validate product: {}", productCode, e);
-            throw new ServiceIntegrationException("Failed to validate product with Product Service", e);
+
+            ProductDto dto = new ProductDto();
+            dto.setId(response.getProductId());
+            dto.setProductCode(response.getProductCode());
+            dto.setProductName(response.getProductName());
+            dto.setMinAmount(response.getMinAmount());
+            dto.setMaxAmount(response.getMaxAmount());
+            dto.setMinTermMonths(response.getMinTermMonths());
+            dto.setMaxTermMonths(response.getMaxTermMonths());
+            dto.setMinInterestRate(response.getMinInterestRate());
+            dto.setMaxInterestRate(response.getMaxInterestRate());
+            return dto;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new ServiceIntegrationException("Product details request timeout", e);
         }
     }
 
@@ -295,25 +336,35 @@ public class AccountService {
     }
 
     private FdCalculationDto calculateMaturity(AccountCreationRequest request, String authToken) {
+        String requestId = UUID.randomUUID().toString();
+        FdCalculationRequestEvent event = FdCalculationRequestEvent.builder()
+                .customerId(Long.parseLong(request.getCustomerId()))
+                .productCode(request.getProductCode())
+                .principalAmount(request.getPrincipalAmount())
+                .tenureMonths(request.getTenureMonths())
+                .requestId(requestId)
+                .timestamp(LocalDateTime.now())
+                .build();
+
+        requestResponseStore.putRequest(requestId, true);
+        kafkaProducerService.sendFdCalculationRequest(event);
+
         try {
-            Map<String, Object> calculationRequest = new HashMap<>();
-            calculationRequest.put("customerId", request.getCustomerId());
-            calculationRequest.put("productCode", request.getProductCode());
-            calculationRequest.put("principalAmount", request.getPrincipalAmount());
-            calculationRequest.put("interestRate", request.getInterestRate());
-            calculationRequest.put("tenureMonths", request.getTenureMonths());
+            FdCalculationResponseEvent response = (FdCalculationResponseEvent) requestResponseStore
+                    .getResponse(requestId, requestTimeoutSeconds, TimeUnit.SECONDS);
 
-            ApiResponse<FdCalculationDto> response = fdCalculatorServiceClient.calculateFd(
-                    calculationRequest, authToken);
-
-            if (response.getData() == null) {
+            if (response == null || response.getMaturityAmount() == null) {
                 throw new ServiceIntegrationException("Failed to calculate FD maturity");
             }
 
-            return response.getData();
-        } catch (FeignException e) {
-            log.error("Failed to calculate maturity for account", e);
-            throw new ServiceIntegrationException("Failed to calculate maturity with FD Calculator Service", e);
+            FdCalculationDto dto = new FdCalculationDto();
+            dto.setMaturityAmount(response.getMaturityAmount());
+            dto.setInterestEarned(response.getInterestEarned());
+            dto.setEffectiveRate(response.getEffectiveRate());
+            return dto;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new ServiceIntegrationException("FD calculation request timeout", e);
         }
     }
 
@@ -339,7 +390,8 @@ public class AccountService {
     }
 
     private BigDecimal computeCurrentBalance(String accountNo) {
-        List<com.bt.accounts.entity.AccountTransaction> txns = transactionRepository.findByAccountNoOrderByTransactionDateDesc(accountNo);
+        List<com.bt.accounts.entity.AccountTransaction> txns = transactionRepository
+                .findByAccountNoOrderByTransactionDateDesc(accountNo);
         if (txns == null || txns.isEmpty()) {
             FdAccount account = accountRepository.findByAccountNo(accountNo).orElseThrow();
             BigDecimal pa = account.getPrincipalAmount();

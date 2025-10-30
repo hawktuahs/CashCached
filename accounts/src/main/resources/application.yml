@@ -18,6 +18,16 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.MySQLDialect
         format_sql: true
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+    consumer:
+      group-id: accounts-service
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      auto-offset-reset: earliest
+      properties:
+        spring.json.trusted.packages: '*'
 
 server:
   port: ${SERVER_PORT:8084}
@@ -27,22 +37,6 @@ server:
 jwt:
   secret: ${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
   expiration: ${JWT_EXPIRATION:86400000}
-
-services:
-  customer:
-    url: ${CUSTOMER_SERVICE_URL:http://localhost:8081}
-  product:
-    url: ${PRODUCT_SERVICE_URL:http://localhost:8082}
-  fdcalculator:
-    url: ${FD_CALCULATOR_SERVICE_URL:http://localhost:8083}
-
-feign:
-  client:
-    config:
-      default:
-        connectTimeout: 5000
-        readTimeout: 5000
-        loggerLevel: basic
 
 springdoc:
   api-docs:
@@ -61,3 +55,7 @@ cashcached:
   contract-address: ${CASHCACHED_CONTRACT_ADDRESS:0x0000000000000000000000000000000000000000}
   treasury-private-key: ${CASHCACHED_TREASURY_PRIVATE_KEY:0x0}
   treasury-address: ${CASHCACHED_TREASURY_ADDRESS:0x0000000000000000000000000000000000000000}
+
+app:
+  kafka:
+    request-timeout-seconds: ${KAFKA_REQUEST_TIMEOUT:30}
