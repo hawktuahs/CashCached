@@ -5,9 +5,7 @@ on:
     branches: [ "main" ]
   workflow_dispatch:
 
-# Needed for Azure OIDC
 permissions:
-  id-token: write
   contents: read
 
 concurrency:
@@ -15,12 +13,6 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  # AZURE (already created by you)
-  AZURE_RESOURCE_GROUP: cashcached1-rg
-  AZURE_WEBAPP_NAME: cashcached-api
-  # STATIC WEB APPS
-  AZURE_SWA_NAME: cashcached-frontend
-  # RUNTIME VERSIONS
   JAVA_VERSION: "17"
   NODE_VERSION: "20"
 
@@ -42,8 +34,7 @@ jobs:
       - name: Cache Maven
         uses: actions/cache@v4
         with:
-          path: |
-            ~/.m2/repository
+          path: ~/.m2/repository
           key: maven-${{ runner.os }}-${{ hashFiles('**/pom.xml') }}
           restore-keys: |
             maven-${{ runner.os }}-
@@ -52,39 +43,16 @@ jobs:
         working-directory: ./main
         run: mvn -B -DskipTests package
 
-      - name: Azure login (OIDC)
-        uses: azure/login@v2
-        with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-
-      - name: Push App Settings to App Service
-        run: |
-          az webapp config appsettings set \
-            --resource-group "${{ env.AZURE_RESOURCE_GROUP }}" \
-            --name "${{ env.AZURE_WEBAPP_NAME }}" \
-            --settings \
-              POLYGON_AMOY_RPC_URL='${{ secrets.POLYGON_AMOY_RPC_URL }}' \
-              TREASURY_PRIVATE_KEY='${{ secrets.TREASURY_PRIVATE_KEY }}' \
-              CASHCACHED_OWNER_ADDRESS='${{ secrets.CASHCACHED_OWNER_ADDRESS }}' \
-              CASHCACHED_CONTRACT_ADDRESS='${{ secrets.CASHCACHED_CONTRACT_ADDRESS }}' \
-              CASHCACHED_TREASURY_ADDRESS='${{ secrets.CASHCACHED_TREASURY_ADDRESS }}' \
-              SPRING_MAIL_HOST='${{ secrets.SPRING_MAIL_HOST }}' \
-              SPRING_MAIL_PORT='${{ secrets.SPRING_MAIL_PORT }}' \
-              SPRING_MAIL_USERNAME='${{ secrets.SPRING_MAIL_USERNAME }}' \
-              SPRING_MAIL_PASSWORD='${{ secrets.SPRING_MAIL_PASSWORD }}' \
-              SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH='${{ secrets.SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH }}' \
-              SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE='${{ secrets.SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE }}'
-
+      # Deploy using App Service Publish Profile (no Azure login required)
       - name: Deploy JAR to App Service
         uses: azure/webapps-deploy@v2
         with:
-          app-name: ${{ env.AZURE_WEBAPP_NAME }}
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
           package: main/target/*.jar
+          # app-name not required when using publish-profile
 
   frontend:
-    name: Build & Deploy Frontend (Vite in /main/frontend → SWA)
+    name: Build & Deploy Frontend (Vite in /main/frontend → Static Web Apps)
     runs-on: ubuntu-latest
     needs: backend
 
