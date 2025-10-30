@@ -34,8 +34,12 @@ public class ProxyController {
     @RequestMapping(path = {
             "/api/auth/**",
             "/api/customer/**",
+            "/api/v1/customer/**",
             "/api/v1/product/**",
             "/api/v1/pricing-rule/**",
+            "/api/v1/product/reports/**",
+            "/api/v1/customer/reports/**",
+            "/api/v1/accounts/reports/**",
             "/api/fd/**",
             "/api/accounts/**",
             "/api/financials/stablecoin/**"
@@ -92,13 +96,14 @@ public class ProxyController {
     }
 
     private String resolveBaseUrl(String path) {
-        if (path.startsWith("/api/auth") || path.startsWith("/api/customer"))
+        if (path.startsWith("/api/auth") || path.startsWith("/api/customer") || path.startsWith("/api/v1/customer"))
             return customerBase;
         if (path.startsWith("/api/v1/product") || path.startsWith("/api/v1/pricing-rule"))
             return productBase;
         if (path.startsWith("/api/fd"))
             return fdBase;
-        if (path.startsWith("/api/accounts") || path.startsWith("/api/financials"))
+        if (path.startsWith("/api/v1/accounts") || path.startsWith("/api/accounts")
+                || path.startsWith("/api/financials"))
             return accountsBase;
         throw new IllegalArgumentException("Unsupported path: " + path);
     }
