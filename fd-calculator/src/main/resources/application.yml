@@ -28,6 +28,23 @@ spring:
       auto-offset-reset: earliest
       properties:
         spring.json.trusted.packages: "*"
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: 60000
+      jedis:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
+          max-wait: -1ms
+  cache:
+    type: redis
+    redis:
+      time-to-live: 600000
+      cache-null-values: false
 
 server:
   port: ${SERVER_PORT:8083}
@@ -53,3 +70,10 @@ app:
     rounding-scale: 2
   kafka:
     request-timeout-seconds: ${KAFKA_REQUEST_TIMEOUT:30}
+  redis:
+    rate-limit:
+      max-requests: 100
+      window-seconds: 60
+    cache:
+      ttl-hours: 24
+      calculation-ttl-hours: 48

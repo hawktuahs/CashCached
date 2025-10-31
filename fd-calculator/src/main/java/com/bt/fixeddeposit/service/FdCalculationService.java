@@ -9,7 +9,7 @@ import com.bt.fixeddeposit.event.CustomerValidationResponse;
 import com.bt.fixeddeposit.event.KafkaProducerService;
 import com.bt.fixeddeposit.event.ProductDetailsRequest;
 import com.bt.fixeddeposit.event.ProductDetailsResponse;
-import com.bt.fixeddeposit.event.RequestResponseStore;
+import com.bt.fixeddeposit.event.RedisRequestResponseStore;
 import com.bt.fixeddeposit.exception.*;
 import com.bt.fixeddeposit.repository.FdCalculationRepository;
 import lombok.RequiredArgsConstructor;
@@ -32,7 +32,8 @@ public class FdCalculationService {
 
     private final FdCalculationRepository calculationRepository;
     private final KafkaProducerService kafkaProducerService;
-    private final RequestResponseStore requestResponseStore;
+    private final RedisRequestResponseStore requestResponseStore;
+    private final RedisFdCacheService redisFdCacheService;
 
     @Value("${app.calculation.default-compounding-frequency}")
     private Integer defaultCompoundingFrequency;
@@ -47,6 +48,17 @@ public class FdCalculationService {
     public FdCalculationResponse calculateFd(FdCalculationRequest request, String authToken) {
         log.info("Processing FD calculation request for customer: {} and product: {}",
                 request.getCustomerId(), request.getProductCode());
+
+        FdCalculationResponse cachedResult = redisFdCacheService.getCachedCalculation(
+                request.getCustomerId(),
+                request.getProductCode(),
+                request.getTenureMonths(),
+                request.getPrincipalAmount());
+
+        if (cachedResult != null) {
+            log.info("Returning cached FD calculation result");
+            return cachedResult;
+        }
 
         validateCustomer(request.getCustomerId());
         ProductResponse product = fetchProductDetails(request.getProductCode());
@@ -79,7 +91,16 @@ public class FdCalculationService {
         FdCalculation savedCalculation = calculationRepository.save(calculation);
         log.info("FD calculation saved successfully with ID: {}", savedCalculation.getId());
 
-        return buildCalculationResponse(savedCalculation, product.getProductName());
+        FdCalculationResponse response = buildCalculationResponse(savedCalculation, product.getProductName());
+
+        redisFdCacheService.cacheCalculation(
+                request.getCustomerId(),
+                request.getProductCode(),
+                request.getTenureMonths(),
+                request.getPrincipalAmount(),
+                response);
+
+        return response;
     }
 
     @Transactional(readOnly = true)
@@ -131,8 +152,8 @@ public class FdCalculationService {
             kafkaProducerService.sendCustomerValidationRequest(request);
 
             log.info("Waiting for customer validation response (timeout: {} seconds)...", requestTimeoutSeconds);
-            CustomerValidationResponse response = (CustomerValidationResponse) requestResponseStore
-                    .getResponse(requestId, requestTimeoutSeconds, TimeUnit.SECONDS);
+            CustomerValidationResponse response = requestResponseStore
+                    .getResponse(requestId, CustomerValidationResponse.class, requestTimeoutSeconds, TimeUnit.SECONDS);
 
             log.info("Received customer validation response: response={}, valid={}, active={}",
                     response != null ? "present" : "NULL",
@@ -160,6 +181,10 @@ public class FdCalculationService {
     private ProductResponse fetchProductDetails(String productCode) {
         try {
             String requestId = UUID.randomUUID().toString();
+            log.info("============ REQUESTING PRODUCT DETAILS ============");
+            log.info("Product Code: {}", productCode);
+            log.info("Request ID: {}", requestId);
+
             ProductDetailsRequest request = ProductDetailsRequest.builder()
                     .productCode(productCode)
                     .requestId(requestId)
@@ -167,12 +192,20 @@ public class FdCalculationService {
                     .build();
 
             requestResponseStore.putRequest(requestId, null);
-            kafkaProducerService.sendProductDetailsRequest(request);
+            log.info("Stored request marker in Redis");
 
-            ProductDetailsResponse response = (ProductDetailsResponse) requestResponseStore
-                    .getResponse(requestId, requestTimeoutSeconds, TimeUnit.SECONDS);
+            kafkaProducerService.sendProductDetailsRequest(request);
+            log.info("Sent product details request to Kafka");
+
+            log.info("Waiting for response (timeout: {} seconds)...", requestTimeoutSeconds);
+            ProductDetailsResponse response = requestResponseStore
+                    .getResponse(requestId, ProductDetailsResponse.class, requestTimeoutSeconds, TimeUnit.SECONDS);
+
+            log.info("Response received: {}", response);
+            log.info("Response product ID: {}", response != null ? response.getProductId() : "NULL");
 
             if (response == null || response.getProductId() == null) {
+                log.error("Product not found - response null or productId null");
                 throw new ProductNotFoundException("Product not found with code: " + productCode);
             }
 

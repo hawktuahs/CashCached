@@ -15,7 +15,7 @@ import java.time.LocalDateTime;
 @Slf4j
 public class KafkaConsumerService {
 
-    private final RequestResponseStore requestResponseStore;
+    private final RedisRequestResponseStore requestResponseStore;
     private final FdCalculationService fdCalculationService;
     private final KafkaProducerService kafkaProducerService;
 
@@ -30,7 +30,7 @@ public class KafkaConsumerService {
                     response != null ? response.getActive() : "N/A");
 
             if (response != null && response.getRequestId() != null) {
-                log.info("Storing response in RequestResponseStore for requestId: {}", response.getRequestId());
+                log.info("Storing response in RedisRequestResponseStore for requestId: {}", response.getRequestId());
                 requestResponseStore.putResponse(response.getRequestId(), response);
                 log.info("Response stored successfully");
             } else {
@@ -45,12 +45,19 @@ public class KafkaConsumerService {
     @KafkaListener(topics = "product.details.response", groupId = "fd-product-response-consumer", containerFactory = "productDetailsKafkaListenerContainerFactory")
     public void handleProductDetailsResponse(@Payload ProductDetailsResponse response) {
         try {
-            log.info("Received product details response for request: {}",
-                    response != null ? response.getRequestId() : "null response");
+            log.info("============ PRODUCT DETAILS RESPONSE RECEIVED ============");
+            log.info("Response: {}", response);
+            log.info("Request ID: {}", response != null ? response.getRequestId() : "NULL");
+            log.info("Product ID: {}", response != null ? response.getProductId() : "NULL");
+            log.info("Product Code: {}", response != null ? response.getProductCode() : "NULL");
+            log.info("Error: {}", response != null ? response.getError() : "NULL");
+
             if (response != null && response.getRequestId() != null) {
+                log.info("Storing response in Redis for request ID: {}", response.getRequestId());
                 requestResponseStore.putResponse(response.getRequestId(), response);
+                log.info("Response stored successfully");
             } else {
-                log.error("Invalid product details response: {}", response);
+                log.error("Invalid product details response - null response or null requestId");
             }
         } catch (Exception e) {
             log.error("Error processing product details response", e);
