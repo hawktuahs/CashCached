@@ -10,7 +10,7 @@ import org.springframework.stereotype.Service;
 @Slf4j
 public class KafkaConsumerService {
 
-    private final RequestResponseStore requestResponseStore;
+    private final RedisRequestResponseStore requestResponseStore;
 
     @KafkaListener(topics = "customer.validation.response", groupId = "accounts-customer-validator", containerFactory = "customerValidationKafkaListenerContainerFactory")
     public void handleCustomerValidationResponse(CustomerValidationResponse response) {
@@ -23,7 +23,7 @@ public class KafkaConsumerService {
 
         if (response != null && response.getRequestId() != null) {
             requestResponseStore.putResponse(response.getRequestId(), response);
-            log.info("Response stored for requestId: {}", response.getRequestId());
+            log.info("Response stored in Redis for requestId: {}", response.getRequestId());
         } else {
             log.error("Invalid response - null or missing requestId!");
         }

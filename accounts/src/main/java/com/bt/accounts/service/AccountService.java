@@ -10,6 +10,8 @@ import com.bt.accounts.repository.AccountTransactionRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -33,7 +35,7 @@ public class AccountService {
     private final CashCachedService cashCachedService;
     private final AccountNumberGenerator accountNumberGenerator;
     private final KafkaProducerService kafkaProducerService;
-    private final RequestResponseStore requestResponseStore;
+    private final RedisRequestResponseStore requestResponseStore;
 
     @Value("${accounts.sequence.prefix:FD}")
     private String accountPrefix;
@@ -42,6 +44,7 @@ public class AccountService {
     private int requestTimeoutSeconds;
 
     @Transactional
+    @CacheEvict(value = { "accounts", "customerAccounts" }, allEntries = true)
     public AccountResponse createAccount(AccountCreationRequest request, String authToken) {
         validateUserRole();
 
@@ -158,6 +161,7 @@ public class AccountService {
     }
 
     @Transactional(readOnly = true)
+    @Cacheable(value = "customerAccounts", key = "#customerId")
     public List<AccountResponse> getCustomerAccounts(String customerId) {
         List<FdAccount> accounts = accountRepository.findAllByCustomerIdOrderByCreatedAtDesc(customerId);
         return accounts.stream()
@@ -170,6 +174,7 @@ public class AccountService {
     }
 
     @Transactional
+    @CacheEvict(value = { "accounts", "customerAccounts" }, allEntries = true)
     public AccountResponse closeAccount(String accountNo, AccountClosureRequest request) {
         validateUserRole();
 
@@ -248,8 +253,8 @@ public class AccountService {
         log.info("Request sent. Now waiting for response (timeout: {} seconds)...", requestTimeoutSeconds);
 
         try {
-            CustomerValidationResponse response = (CustomerValidationResponse) requestResponseStore
-                    .getResponse(requestId, requestTimeoutSeconds, TimeUnit.SECONDS);
+            CustomerValidationResponse response = requestResponseStore
+                    .getResponse(requestId, CustomerValidationResponse.class, requestTimeoutSeconds, TimeUnit.SECONDS);
 
             log.info("========== RESPONSE RECEIVED ==========");
             log.info("Response: {}", response != null ? "NOT NULL" : "NULL");
@@ -282,8 +287,8 @@ public class AccountService {
         kafkaProducerService.sendProductDetailsRequest(request);
 
         try {
-            ProductDetailsResponse response = (ProductDetailsResponse) requestResponseStore
-                    .getResponse(requestId, requestTimeoutSeconds, TimeUnit.SECONDS);
+            ProductDetailsResponse response = requestResponseStore
+                    .getResponse(requestId, ProductDetailsResponse.class, requestTimeoutSeconds, TimeUnit.SECONDS);
 
             if (response == null || response.getProductId() == null) {
                 throw new ProductNotFoundException("Product not found: " + productCode);
@@ -355,8 +360,8 @@ public class AccountService {
         kafkaProducerService.sendFdCalculationRequest(event);
 
         try {
-            FdCalculationResponseEvent response = (FdCalculationResponseEvent) requestResponseStore
-                    .getResponse(requestId, requestTimeoutSeconds, TimeUnit.SECONDS);
+            FdCalculationResponseEvent response = requestResponseStore
+                    .getResponse(requestId, FdCalculationResponseEvent.class, requestTimeoutSeconds, TimeUnit.SECONDS);
 
             if (response == null || response.getMaturityAmount() == null) {
                 throw new ServiceIntegrationException("Failed to calculate FD maturity");

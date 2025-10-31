@@ -19,7 +19,22 @@ spring:
         dialect: org.hibernate.dialect.MySQLDialect
         format_sql: true
   cache:
-    type: simple
+    type: redis
+    redis:
+      time-to-live: 600000
+      cache-null-values: false
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: 60000
+      jedis:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
+          max-wait: -1ms
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
     producer:
@@ -52,5 +67,11 @@ springdoc:
 app:
   cache:
     product-ttl: 3600
+  redis:
+    rate-limit:
+      max-requests: 200
+      window-seconds: 60
+    cache:
+      ttl-hours: 6
   kafka:
     request-timeout-seconds: ${KAFKA_REQUEST_TIMEOUT:30}

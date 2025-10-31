@@ -43,6 +43,9 @@ public class User {
     @Column(nullable = false)
     private Boolean active;
 
+    @Column(name = "two_factor_enabled", nullable = false)
+    private Boolean twoFactorEnabled;
+
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -55,6 +58,9 @@ public class User {
         updatedAt = LocalDateTime.now();
         if (active == null) {
             active = true;
+        }
+        if (twoFactorEnabled == null) {
+            twoFactorEnabled = false;
         }
         if (role == null) {
             role = Role.CUSTOMER;

@@ -538,7 +538,7 @@ export function Dashboard() {
           <p className="text-muted-foreground">{t("dashboard.subtitle")}</p>
         </div>
         <Badge variant="outline" className="text-sm">
-          {user?.role?.replace("_", " ")}
+          {user?.role ? t(`role.${user.role}`) : user?.role?.replace("_", " ")}
         </Badge>
       </div>
 
@@ -653,10 +653,8 @@ export function Dashboard() {
 
         <Card>
           <CardHeader>
-            <CardTitle>AI Assistant</CardTitle>
-            <CardDescription>
-              Ask questions about your accounts and products
-            </CardDescription>
+            <CardTitle>{t("dashboard.ai.title")}</CardTitle>
+            <CardDescription>{t("dashboard.ai.description")}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="h-60 overflow-y-auto rounded-md border bg-muted/30 p-3 space-y-2 text-sm">
@@ -666,8 +664,7 @@ export function Dashboard() {
               >
                 {messages.length === 0 ? (
                   <div className="text-muted-foreground">
-                    Start the conversation to receive tailored answers based on
-                    your BankTrust data.
+                    {t("dashboard.ai.welcome")}
                   </div>
                 ) : (
                   messages.map((msg, index) => (
@@ -703,13 +700,15 @@ export function Dashboard() {
                     askGemini();
                   }
                 }}
-                placeholder="Ask anything..."
+                placeholder={t("dashboard.ai.placeholder")}
                 className="w-full h-24 rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600 disabled:opacity-70"
                 disabled={aiLoading}
               />
               <div className="flex justify-end">
                 <Button onClick={askGemini} disabled={aiLoading}>
-                  {aiLoading ? "Thinking..." : "Send"}
+                  {aiLoading
+                    ? t("dashboard.ai.thinking")
+                    : t("dashboard.ai.send")}
                 </Button>
               </div>
             </div>

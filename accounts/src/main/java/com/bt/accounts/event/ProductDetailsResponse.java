@@ -27,6 +27,7 @@ public class ProductDetailsResponse implements Serializable {
     private BigDecimal minInterestRate;
     private BigDecimal maxInterestRate;
     private String currency;
+    private String compoundingFrequency;
     private String error;
     private LocalDateTime timestamp;
 }

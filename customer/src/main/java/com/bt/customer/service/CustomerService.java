@@ -6,7 +6,10 @@ import com.bt.customer.entity.User;
 import com.bt.customer.exception.UserNotFoundException;
 import com.bt.customer.repository.UserRepository;
 import com.bt.customer.security.UserPrincipal;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -14,11 +17,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 @Service
+@Slf4j
 public class CustomerService {
 
     @Autowired
@@ -27,13 +29,13 @@ public class CustomerService {
     @Autowired
     private PasswordEncoder passwordEncoder;
 
-    private static final Map<String, Boolean> twoFactorEnabled = new ConcurrentHashMap<>();
-
+    @Cacheable(value = "userProfile", key = "#root.methodName + ':' + T(org.springframework.security.core.context.SecurityContextHolder).getContext().getAuthentication().getName()")
     public UserProfileResponse getCurrentUserProfile() {
         User user = getCurrentUser();
         return UserProfileResponse.fromUser(user);
     }
 
+    @Cacheable(value = "allCustomers", key = "'all'")
     public List<UserProfileResponse> getAllCustomers() {
         return userRepository.findAll().stream()
                 .map(UserProfileResponse::fromUser)
@@ -41,6 +43,7 @@ public class CustomerService {
     }
 
     @Transactional
+    @CacheEvict(value = { "userProfile", "customerById", "allCustomers" }, allEntries = true)
     public UserProfileResponse updateProfile(UpdateProfileRequest request) {
         User user = getCurrentUser();
 
@@ -88,6 +91,7 @@ public class CustomerService {
                 .orElse("UNKNOWN");
     }
 
+    @Cacheable(value = "customerById", key = "#id")
     public UserProfileResponse getCustomerById(Long id) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new UserNotFoundException("Customer with ID " + id + " not found"));
@@ -96,19 +100,30 @@ public class CustomerService {
 
     public void enableTwoFactorForCurrentUser() {
         User user = getCurrentUser();
-        twoFactorEnabled.put(user.getUsername(), true);
+        user.setTwoFactorEnabled(true);
+        userRepository.save(user);
+        log.info("Two-factor authentication enabled for user: {}", user.getUsername());
     }
 
     public void disableTwoFactorForCurrentUser() {
         User user = getCurrentUser();
-        twoFactorEnabled.remove(user.getUsername());
+        user.setTwoFactorEnabled(false);
+        userRepository.save(user);
+        log.info("Two-factor authentication disabled for user: {}", user.getUsername());
     }
 
     public boolean isTwoFactorEnabledForCurrentUser() {
         User user = getCurrentUser();
-        return Boolean.TRUE.equals(twoFactorEnabled.get(user.getUsername()));
+        return Boolean.TRUE.equals(user.getTwoFactorEnabled());
     }
 
+    public boolean isTwoFactorEnabled(String username) {
+        return userRepository.findByUsername(username)
+                .map(user -> Boolean.TRUE.equals(user.getTwoFactorEnabled()))
+                .orElse(false);
+    }
+
+    @CacheEvict(value = "userProfile", allEntries = true)
     public void changePassword(String currentPassword, String newPassword) {
         User user = getCurrentUser();
         if (!passwordEncoder.matches(currentPassword, user.getPassword())) {
@@ -116,9 +131,5 @@ public class CustomerService {
         }
         user.setPassword(passwordEncoder.encode(newPassword));
         userRepository.save(user);
-    }
-
-    public boolean isTwoFactorEnabled(String username) {
-        return Boolean.TRUE.equals(twoFactorEnabled.get(username));
     }
 }

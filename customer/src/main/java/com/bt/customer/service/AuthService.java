@@ -52,24 +52,29 @@ public class AuthService {
     @Autowired
     private JavaMailSender mailSender;
 
+    @Autowired
+    private RedisOtpService redisOtpService;
+
+    @Autowired
+    private RedisTokenService redisTokenService;
+
     @Value("${app.mail.from:${spring.mail.username}}")
     private String fromEmail;
 
-    private static final Map<String, OtpEntry> otpStore = new ConcurrentHashMap<>();
     private static final Map<String, Deque<LoginEvent>> loginActivity = new ConcurrentHashMap<>();
-
-    private static class OtpEntry {
-        final String code;
-        final Instant expiresAt;
-        OtpEntry(String code, Instant expiresAt) { this.code = code; this.expiresAt = expiresAt; }
-    }
 
     private static class LoginEvent {
         final String type;
         final String ip;
         final String agent;
         final Instant at;
-        LoginEvent(String type, String ip, String agent, Instant at) { this.type = type; this.ip = ip; this.agent = agent; this.at = at; }
+
+        LoginEvent(String type, String ip, String agent, Instant at) {
+            this.type = type;
+            this.ip = ip;
+            this.agent = agent;
+            this.at = at;
+        }
     }
 
     @Transactional
@@ -115,11 +120,11 @@ public class AuthService {
             User user = userRepository.findByUsername(request.getUsername())
                     .orElseThrow(() -> new InvalidCredentialsException("Invalid credentials"));
 
-            boolean twoFA = customerService.isTwoFactorEnabledForCurrentUser() || customerServiceIsTwoFactorEnabled(user.getUsername());
+            boolean twoFA = customerService.isTwoFactorEnabledForCurrentUser()
+                    || customerServiceIsTwoFactorEnabled(user.getUsername());
             if (twoFA) {
                 String code = generateOtp();
-                Instant exp = Instant.now().plusSeconds(300);
-                otpStore.put(user.getUsername(), new OtpEntry(code, exp));
+                redisOtpService.storeOtp(user.getUsername(), code);
                 log.info("Generated OTP for user {}: {} (valid 5m)", user.getUsername(), code);
                 if (user.getEmail() != null && !user.getEmail().isBlank()) {
                     try {
@@ -134,6 +139,7 @@ public class AuthService {
             }
 
             String token = tokenProvider.generateTokenForUser(user.getUsername(), user.getRole().name());
+            redisTokenService.storeToken(token, user.getUsername());
             recordLogin(user.getUsername(), "PASSWORD");
             return new AuthResponse(token, user.getUsername(), user.getRole().name(), "Authentication successful");
         } catch (Exception e) {
@@ -144,12 +150,13 @@ public class AuthService {
     public AuthResponse verifyOtp(String username, String code) {
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new InvalidCredentialsException("Invalid credentials"));
-        OtpEntry entry = otpStore.get(username);
-        if (entry == null || entry.expiresAt.isBefore(Instant.now()) || !entry.code.equals(code)) {
+
+        if (!redisOtpService.validateOtp(username, code)) {
             throw new InvalidCredentialsException("Invalid or expired OTP");
         }
-        otpStore.remove(username);
+
         String token = tokenProvider.generateTokenForUser(user.getUsername(), user.getRole().name());
+        redisTokenService.storeToken(token, user.getUsername());
         recordLogin(user.getUsername(), "OTP");
         return new AuthResponse(token, user.getUsername(), user.getRole().name(), "Authentication successful");
     }
@@ -183,7 +190,8 @@ public class AuthService {
         LoginEvent ev = new LoginEvent(type, ip, agent, Instant.now());
         loginActivity.computeIfAbsent(username, k -> new ArrayDeque<>()).addFirst(ev);
         Deque<LoginEvent> dq = loginActivity.get(username);
-        while (dq.size() > 20) dq.removeLast();
+        while (dq.size() > 20)
+            dq.removeLast();
     }
 
     private HttpServletRequest currentRequest() {
@@ -193,7 +201,8 @@ public class AuthService {
 
     private String clientIp(HttpServletRequest req) {
         String h = req.getHeader("X-Forwarded-For");
-        if (h != null && !h.isBlank()) return h.split(",")[0].trim();
+        if (h != null && !h.isBlank())
+            return h.split(",")[0].trim();
         return req.getRemoteAddr();
     }
 
@@ -202,13 +211,13 @@ public class AuthService {
         List<Map<String, Object>> out = new ArrayList<>();
         int i = 0;
         for (LoginEvent e : dq) {
-            if (i++ >= limit) break;
+            if (i++ >= limit)
+                break;
             out.add(Map.of(
                     "type", e.type,
                     "ip", e.ip,
                     "agent", e.agent,
-                    "timestamp", e.at.toString()
-            ));
+                    "timestamp", e.at.toString()));
         }
         return out;
     }

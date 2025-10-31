@@ -14,8 +14,11 @@ api.interceptors.response.use(
   },
   (error) => {
     if (error.response?.status === 401) {
-      localStorage.removeItem('token');
-      window.location.href = '/login';
+      const currentPath = window.location.pathname;
+      if (currentPath !== '/login' && !error.config?.url?.includes('/verify-otp')) {
+        localStorage.removeItem('token');
+        window.location.href = '/login';
+      }
     }
     return Promise.reject(error);
   }
@@ -26,7 +29,7 @@ api.interceptors.request.use((config) => {
   if (token) {
     config.headers = config.headers || {};
     if (!config.headers['Authorization']) {
-      config.headers['Authorization'] = `Bearer ${ token }`;
+      config.headers['Authorization'] = `Bearer ${token}`;
     }
     try {
       const decoded = jwtDecode<{ sub: string }>(token);

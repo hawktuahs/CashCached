@@ -242,7 +242,11 @@ export function CustomerProfile() {
           <p className="text-muted-foreground">{t("profile.subtitle")}</p>
         </div>
         <div className="flex items-center gap-2">
-          <Badge variant="outline">{profile?.role?.replace("_", " ")}</Badge>
+          <Badge variant="outline">
+            {profile?.role
+              ? t(`role.${profile.role}`)
+              : profile?.role?.replace("_", " ")}
+          </Badge>
           {!isEditing ? (
             <Button onClick={() => setIsEditing(true)}>
               <Edit3 className="mr-2 h-4 w-4" />
@@ -388,7 +392,9 @@ export function CustomerProfile() {
                         name="preferredCurrency"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Preferred Currency</FormLabel>
+                            <FormLabel>
+                              {t("profile.field.preferredCurrency")}
+                            </FormLabel>
                             <Select
                               value={field.value}
                               onValueChange={(value) => {
@@ -399,7 +405,11 @@ export function CustomerProfile() {
                               }}
                             >
                               <SelectTrigger>
-                                <SelectValue placeholder="Select currency" />
+                                <SelectValue
+                                  placeholder={t(
+                                    "profile.placeholder.selectCurrency"
+                                  )}
+                                />
                               </SelectTrigger>
                               <SelectContent>
                                 {currencyOptions.map((code) => (
@@ -444,7 +454,7 @@ export function CustomerProfile() {
                       disabled={isToggling2fa}
                     >
                       {twoFactorEnabled
-                        ? "Disable"
+                        ? t("profile.security.2fa.disable")
                         : t("profile.security.2fa.enable")}
                     </Button>
                   </div>
@@ -492,16 +502,16 @@ export function CustomerProfile() {
                   {showActivity && (
                     <div className="border rounded-lg">
                       <div className="px-4 py-3 border-b text-sm font-medium">
-                        Recent logins
+                        {t("profile.security.loginActivity.recentLogins")}
                       </div>
                       <div className="divide-y">
                         {isLoadingActivity ? (
                           <div className="px-4 py-6 text-sm text-muted-foreground">
-                            Loading activity…
+                            {t("profile.security.loginActivity.loading")}
                           </div>
                         ) : activity.length === 0 ? (
                           <div className="px-4 py-6 text-sm text-muted-foreground">
-                            No recent activity
+                            {t("profile.security.loginActivity.noActivity")}
                           </div>
                         ) : (
                           activity.map((ev, idx) => (

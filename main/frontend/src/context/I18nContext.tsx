@@ -372,6 +372,21 @@ const dict: Dict = {
   "dashboard.activity.today": { en: "Today", ja: "今日" },
   "dashboard.activity.yesterday": { en: "Yesterday", ja: "昨日" },
   "dashboard.activity.daysAgo2": { en: "2 days ago", ja: "2日前" },
+  "dashboard.ai.title": { en: "AI Assistant", ja: "AIアシスタント" },
+  "dashboard.ai.description": {
+    en: "Ask questions about your accounts and products",
+    ja: "口座や商品について質問する",
+  },
+  "dashboard.ai.placeholder": {
+    en: "Ask anything...",
+    ja: "何でも聞いてください...",
+  },
+  "dashboard.ai.send": { en: "Send", ja: "送信" },
+  "dashboard.ai.thinking": { en: "Thinking...", ja: "考え中..." },
+  "dashboard.ai.welcome": {
+    en: "Start the conversation to receive tailored answers based on your BankTrust data.",
+    ja: "会話を開始して、BankTrustデータに基づいたカスタマイズされた回答を受け取ります。",
+  },
   "common.search": { en: "Search...", ja: "検索..." },
   "common.hide": { en: "Hide", ja: "非表示" },
   "common.show": { en: "Show", ja: "表示" },
@@ -447,6 +462,23 @@ const dict: Dict = {
   "auth.placeholder.firstName": { en: "Enter your first name", ja: "名を入力" },
   "auth.placeholder.lastName": { en: "Enter your last name", ja: "姓を入力" },
   "auth.placeholder.role": { en: "Select a role", ja: "権限を選択" },
+  "auth.otp.title": { en: "Verify OTP", ja: "OTP認証" },
+  "auth.otp.subtitle": {
+    en: "Enter the 6-digit OTP sent to",
+    ja: "送信された6桁のOTPを入力してください",
+  },
+  "auth.otp.code": { en: "OTP Code", ja: "OTPコード" },
+  "auth.otp.placeholder": { en: "Enter 6-digit code", ja: "6桁のコードを入力" },
+  "auth.otp.verify": { en: "Verify OTP", ja: "OTP認証" },
+  "auth.otp.verifying": { en: "Verifying...", ja: "認証中..." },
+  "auth.otp.backToLogin": { en: "Back to login", ja: "ログインに戻る" },
+  "auth.otp.sent": { en: "OTP sent", ja: "OTP送信完了" },
+  "auth.otp.sentDesc": {
+    en: "Check your email for the 6-digit code",
+    ja: "メールで6桁のコードを確認してください",
+  },
+  "auth.showPassword": { en: "Show password", ja: "パスワードを表示" },
+  "auth.hidePassword": { en: "Hide password", ja: "パスワードを非表示" },
   "profile.title": { en: "My Profile", ja: "マイプロフィール" },
   "profile.update": { en: "Update Profile", ja: "プロフィール更新" },
   "profile.subtitle": {
@@ -474,6 +506,10 @@ const dict: Dict = {
   "profile.field.phone": { en: "Phone Number", ja: "電話番号" },
   "profile.field.address": { en: "Address", ja: "住所" },
   "profile.field.dob": { en: "Date of Birth", ja: "生年月日" },
+  "profile.field.preferredCurrency": {
+    en: "Preferred Currency",
+    ja: "希望通貨",
+  },
   "profile.placeholder.firstName": {
     en: "Enter your first name",
     ja: "名を入力",
@@ -491,6 +527,10 @@ const dict: Dict = {
     ja: "電話番号を入力",
   },
   "profile.placeholder.address": { en: "Enter your address", ja: "住所を入力" },
+  "profile.placeholder.selectCurrency": {
+    en: "Select currency",
+    ja: "通貨を選択",
+  },
   "profile.section.security.title": {
     en: "Security Settings",
     ja: "セキュリティ設定",
@@ -508,6 +548,7 @@ const dict: Dict = {
     ja: "アカウントにセキュリティを追加",
   },
   "profile.security.2fa.enable": { en: "Enable", ja: "有効化" },
+  "profile.security.2fa.disable": { en: "Disable", ja: "無効化" },
   "profile.security.changePassword.title": {
     en: "Change Password",
     ja: "パスワード変更",
@@ -526,6 +567,18 @@ const dict: Dict = {
     ja: "最近のログイン履歴を表示",
   },
   "profile.security.loginActivity.view": { en: "View", ja: "表示" },
+  "profile.security.loginActivity.recentLogins": {
+    en: "Recent logins",
+    ja: "最近のログイン",
+  },
+  "profile.security.loginActivity.loading": {
+    en: "Loading activity…",
+    ja: "アクティビティ読み込み中…",
+  },
+  "profile.security.loginActivity.noActivity": {
+    en: "No recent activity",
+    ja: "最近のアクティビティはありません",
+  },
   "profile.status": { en: "Account Status:", ja: "アカウントの状態:" },
   "profile.status.active": { en: "Active", ja: "有効" },
   "profile.memberSince": { en: "Member since:", ja: "登録日:" },
@@ -680,6 +733,17 @@ const dict: Dict = {
     en: "© 2024 CashCached. All rights reserved. | Blockchain-powered banking platform",
     ja: "© 2024 CashCached。著作権所有。| ブロックチェーン搭載バンキングプラットフォーム",
   },
+  "sidebar.wallet.title": { en: "Wallet Balance", ja: "ウォレット残高" },
+  "sidebar.wallet.depositWithdraw": {
+    en: "Deposit/Withdraw",
+    ja: "入金/出金",
+  },
+  "sidebar.wallet.history": { en: "History", ja: "履歴" },
+  "sidebar.wallet.loading": { en: "Loading…", ja: "読み込み中…" },
+  "role.CUSTOMER": { en: "Customer", ja: "顧客" },
+  "role.ADMIN": { en: "Admin", ja: "管理者" },
+  "role.BANKOFFICER": { en: "Bank Officer", ja: "銀行員" },
+  "role.STAFF": { en: "Staff", ja: "スタッフ" },
 };
 
 interface I18nContextType {

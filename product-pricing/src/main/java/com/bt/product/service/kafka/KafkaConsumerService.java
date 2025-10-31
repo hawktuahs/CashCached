@@ -24,15 +24,19 @@ public class KafkaConsumerService {
     @KafkaListener(topics = "product.details.request", groupId = "product-details-consumer")
     public void handleProductDetailsRequest(@Payload ProductDetailsRequest request) {
         try {
-            log.info("Received product details request for product code: {}",
-                    request != null ? request.getProductCode() : "null request");
+            log.info("============ PRODUCT DETAILS REQUEST RECEIVED ============");
+            log.info("Request: {}", request);
+            log.info("Request ID: {}", request != null ? request.getRequestId() : "NULL");
+            log.info("Product Code: {}", request != null ? request.getProductCode() : "NULL");
 
             if (request == null || request.getProductCode() == null) {
-                log.error("Invalid product details request");
+                log.error("Invalid product details request - null request or null product code");
                 return;
             }
 
+            log.info("Fetching product from service...");
             ProductResponse product = productService.getProductByCode(request.getProductCode());
+            log.info("Product fetched: {}", product);
 
             ProductDetailsResponse response = ProductDetailsResponse.builder()
                     .requestId(request.getRequestId())
@@ -51,8 +55,9 @@ public class KafkaConsumerService {
                     .timestamp(LocalDateTime.now())
                     .build();
 
+            log.info("Sending product details response: {}", response);
             kafkaProducerService.sendProductDetailsResponse(response);
-            log.info("Product details response sent for request: {}", request.getRequestId());
+            log.info("Product details response sent successfully for request ID: {}", request.getRequestId());
         } catch (Exception e) {
             log.error("Error handling product details request for code: {}",
                     request != null ? request.getProductCode() : "unknown", e);
@@ -64,6 +69,7 @@ public class KafkaConsumerService {
                     .timestamp(LocalDateTime.now())
                     .build();
 
+            log.info("Sending error response: {}", errorResponse);
             kafkaProducerService.sendProductDetailsResponse(errorResponse);
         }
     }
