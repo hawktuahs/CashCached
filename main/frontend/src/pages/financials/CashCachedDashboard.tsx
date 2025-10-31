@@ -39,6 +39,19 @@ interface CustomerOption {
   username: string
 }
 
+function unwrapApiData<T>(payload: any): T | null {
+  if (payload === null || payload === undefined) {
+    return null
+  }
+  if (typeof payload === 'object' && 'data' in payload) {
+    const inner = (payload as { data?: T }).data
+    if (inner !== undefined) {
+      return inner as T
+    }
+  }
+  return payload as T
+}
+
 function toPayloadAmount(input: string) {
   const trimmed = String(input ?? '').trim()
   if (!/^[0-9]+$/.test(trimmed)) {
@@ -112,9 +125,10 @@ export function CashCachedDashboard() {
     }
     try {
       const historyResp = await api.get(`/api/financials/stablecoin/history/${id}`)
-      const historyPayload = Array.isArray(historyResp.data) ? historyResp.data : []
-      setHistory(historyPayload)
-      return historyPayload
+      const payload = unwrapApiData<LedgerEntry[]>(historyResp?.data) ?? []
+      const entries = Array.isArray(payload) ? payload : []
+      setHistory(entries)
+      return entries
     } catch {
       toast.error('Unable to refresh history')
       setHistory([])
@@ -131,12 +145,15 @@ export function CashCachedDashboard() {
       const response = await api.get('/api/financials/stablecoin/history/all', {
         params: { page, size },
       })
-      const payload = response?.data
+      const payload = unwrapApiData<any>(response?.data) ?? {}
       const content = Array.isArray(payload?.content) ? payload.content : []
+      const resolvedPage = Number(payload?.number ?? payload?.pageable?.pageNumber ?? page)
+      const resolvedSize = Number(payload?.size ?? payload?.pageable?.pageSize ?? size)
+      const resolvedTotalPages = Number(payload?.totalPages ?? 0)
       setAllHistory(content)
-      setAllPage(Number(payload?.number ?? page))
-      setAllSize(Number(payload?.size ?? size))
-      setAllTotalPages(Number(payload?.totalPages ?? 0))
+      setAllPage(Number.isFinite(resolvedPage) ? resolvedPage : page)
+      setAllSize(Number.isFinite(resolvedSize) ? resolvedSize : size)
+      setAllTotalPages(Number.isFinite(resolvedTotalPages) ? resolvedTotalPages : 0)
     } catch {
       toast.error('Unable to load global history')
       setAllHistory([])
@@ -151,7 +168,8 @@ export function CashCachedDashboard() {
     }
     try {
       const summaryResp = await api.get('/api/financials/stablecoin/summary')
-      setSummary(summaryResp.data)
+      const payload = unwrapApiData<Summary>(summaryResp?.data)
+      setSummary(payload ?? null)
     } catch {
       toast.error('Unable to refresh summary')
     }
