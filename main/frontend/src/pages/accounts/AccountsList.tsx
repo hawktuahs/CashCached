@@ -33,17 +33,6 @@ import {
 import { useAuth } from "@/context/AuthContext";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
-import { useForm } from "react-hook-form";
-import { z } from "zod";
-import { zodResolver } from "@hookform/resolvers/zod";
 import { useI18n } from "@/context/I18nContext";
 import { useStablecoinConversion } from "@/hooks/useStablecoinConversion";
 
@@ -60,18 +49,6 @@ interface Account {
   principalAmount: number;
 }
 
-const openAccountSchema = z.object({
-  customerId: z.string().min(1),
-  productCode: z.string().min(1),
-  principalAmount: z.number().min(1000),
-  interestRate: z.number().min(0.01).max(20),
-  tenureMonths: z.number().min(1).max(120),
-  branchCode: z.string().regex(/^[A-Z0-9]{3,20}$/),
-  remarks: z.string().max(500).optional().or(z.literal("")),
-});
-
-type OpenAccountFormData = z.infer<typeof openAccountSchema>;
-
 export function AccountsList() {
   const { user } = useAuth();
   const { t } = useI18n();
@@ -85,14 +62,6 @@ export function AccountsList() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
-  const [showOpenForm, setShowOpenForm] = useState(false);
-  const [customers, setCustomers] = useState<
-    Array<{ id: string; name: string }>
-  >([]);
-  const [products, setProducts] = useState<
-    Array<{ code: string; name: string }>
-  >([]);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [customerId, setCustomerId] = useState<string | null>(null);
 
   const isAdmin = user?.role === "ADMIN" || user?.role === "BANKOFFICER";
@@ -202,89 +171,6 @@ export function AccountsList() {
     };
   }, [customerId]);
 
-  useEffect(() => {
-    const loadAux = async () => {
-      if (!showOpenForm) return;
-      try {
-        const res = await api.get("/api/v1/product");
-        const root = res?.data;
-        let p: any[] = [];
-        if (Array.isArray(root?.data)) {
-          p = root.data;
-        } else if (Array.isArray(root)) {
-          p = root;
-        }
-        console.log("Products loaded:", p.length, "items");
-        setProducts(
-          p.map((x: any) => ({
-            code: String(x.productCode ?? ""),
-            name: String(x.productName ?? x.productCode ?? ""),
-          }))
-        );
-      } catch (e) {
-        console.error("Failed to load products:", e);
-      }
-    };
-
-    const loadCustomers = async () => {
-      if (!showOpenForm || !isAdmin) return;
-      try {
-        const custRes = await api.get("/api/customer/all");
-        const c = Array.isArray(custRes.data) ? custRes.data : [];
-        console.log("Customers loaded:", c.length, "items");
-        setCustomers(
-          c.map((u: any) => ({
-            id: String(u.id),
-            name: String(u.fullName || u.username || u.email || u.id),
-          }))
-        );
-      } catch (e) {
-        console.error("Failed to load customers:", e);
-      }
-    };
-
-    loadAux();
-    loadCustomers();
-  }, [isAdmin, showOpenForm]);
-
-  const form = useForm<OpenAccountFormData>({
-    resolver: zodResolver(openAccountSchema),
-    defaultValues: {
-      customerId: "",
-      productCode: "",
-      principalAmount: 100000,
-      interestRate: 7,
-      tenureMonths: 12,
-      branchCode: "HQ001",
-      remarks: "",
-    },
-  });
-
-  const submitOpenAccount = async (data: OpenAccountFormData) => {
-    setIsSubmitting(true);
-    try {
-      const payload = {
-        customerId: data.customerId,
-        productCode: data.productCode,
-        principalAmount: Math.floor(data.principalAmount),
-        interestRate: data.interestRate,
-        tenureMonths: data.tenureMonths,
-        branchCode: data.branchCode,
-        remarks: data.remarks || "",
-      };
-      const res = await api.post("/api/accounts/create", payload);
-      if (res?.data?.data?.accountNumber)
-        toast.success("Account created successfully");
-      setShowOpenForm(false);
-      const refreshed = await api.get(`/api/accounts/customer/${user?.id}`);
-      setAccounts(refreshed.data);
-    } catch {
-      toast.error("Failed to create account");
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
   const filteredAccounts = accounts.filter((account) => {
     const acctNum = account.accountNumber || "";
     const prod = (account.productName || "").toLowerCase();
@@ -355,193 +241,7 @@ export function AccountsList() {
             </Button>
           </div>
         )}
-        {isAdmin && (
-          <Button onClick={() => setShowOpenForm((v) => !v)}>
-            <CreditCard className="mr-2 h-4 w-4" />
-            {showOpenForm ? t("action.close") : t("accounts.openNew")}
-          </Button>
-        )}
       </div>
-
-      {isAdmin && showOpenForm && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Open Account</CardTitle>
-            <CardDescription>Create a Fixed Deposit account</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Form {...form}>
-              <form
-                onSubmit={form.handleSubmit(submitOpenAccount)}
-                className="grid gap-4 md:grid-cols-2"
-              >
-                <FormField
-                  control={form.control}
-                  name="customerId"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Customer</FormLabel>
-                      <Select
-                        value={field.value}
-                        onValueChange={field.onChange}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select customer" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {customers.map((c) => (
-                            <SelectItem
-                              key={c.id}
-                              value={c.id}
-                            >{`${c.name} (ID: ${c.id})`}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="productCode"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Product</FormLabel>
-                      <Select
-                        value={field.value}
-                        onValueChange={field.onChange}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select product" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {products.map((p) => (
-                            <SelectItem key={p.code} value={p.code}>
-                              {p.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="principalAmount"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t("calculator.principalTokens")}</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="number"
-                          step="1"
-                          value={field.value}
-                          onChange={(e) =>
-                            field.onChange(
-                              Math.floor(Number(e.target.value) || 0)
-                            )
-                          }
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="interestRate"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Interest Rate (% p.a.)</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="number"
-                          step="0.01"
-                          value={field.value}
-                          onChange={(e) =>
-                            field.onChange(Number(e.target.value))
-                          }
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="tenureMonths"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Tenure (Months)</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="number"
-                          value={field.value}
-                          onChange={(e) =>
-                            field.onChange(Number(e.target.value))
-                          }
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="branchCode"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Branch Code</FormLabel>
-                      <FormControl>
-                        <Input placeholder="HQ001" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="remarks"
-                  render={({ field }) => (
-                    <FormItem className="md:col-span-2">
-                      <FormLabel>Remarks</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Optional" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <div className="md:col-span-2 flex justify-end gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setShowOpenForm(false)}
-                    disabled={isSubmitting}
-                  >
-                    Cancel
-                  </Button>
-                  <Button type="submit" disabled={isSubmitting}>
-                    Create Account
-                  </Button>
-                </div>
-              </form>
-            </Form>
-          </CardContent>
-        </Card>
-      )}
 
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-1 items-center gap-2">
