@@ -14,8 +14,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -28,122 +28,122 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @DisplayName("AuthController Tests")
 class AuthControllerTest {
 
-    @Autowired
-    private MockMvc mockMvc;
+        @Autowired
+        private MockMvc mockMvc;
 
-    @Autowired
-    private ObjectMapper objectMapper;
+        @Autowired
+        private ObjectMapper objectMapper;
 
-    @MockBean
-    private AuthService authService;
+        @MockitoBean
+        private AuthService authService;
 
-    private RegisterRequest registerRequest;
-    private LoginRequest loginRequest;
-    private AuthResponse authResponse;
+        private RegisterRequest registerRequest;
+        private LoginRequest loginRequest;
+        private AuthResponse authResponse;
 
-    @BeforeEach
-    void setUp() {
-        registerRequest = RegisterRequest.builder()
-                .username("testuser")
-                .password("password123")
-                .fullName("Test User")
-                .email("test@example.com")
-                .phoneNumber("+1234567890")
-                .role(User.Role.CUSTOMER)
-                .build();
+        @BeforeEach
+        void setUp() {
+                registerRequest = RegisterRequest.builder()
+                                .username("testuser")
+                                .password("password123")
+                                .fullName("Test User")
+                                .email("test@example.com")
+                                .phoneNumber("+1234567890")
+                                .role(User.Role.CUSTOMER)
+                                .build();
 
-        loginRequest = LoginRequest.builder()
-                .username("testuser")
-                .password("password123")
-                .build();
+                loginRequest = LoginRequest.builder()
+                                .username("testuser")
+                                .password("password123")
+                                .build();
 
-        authResponse = AuthResponse.builder()
-                .token("sample.jwt.token")
-                .tokenType("Bearer")
-                .username("testuser")
-                .role("CUSTOMER")
-                .message("Success")
-                .build();
-    }
+                authResponse = AuthResponse.builder()
+                                .token("sample.jwt.token")
+                                .tokenType("Bearer")
+                                .username("testuser")
+                                .role("CUSTOMER")
+                                .message("Success")
+                                .build();
+        }
 
-    @Test
-    @DisplayName("Should register user successfully with valid data")
-    void shouldRegisterUserSuccessfully() throws Exception {
-        when(authService.register(any(RegisterRequest.class))).thenReturn(authResponse);
+        @Test
+        @DisplayName("Should register user successfully with valid data")
+        void shouldRegisterUserSuccessfully() throws Exception {
+                when(authService.register(any(RegisterRequest.class))).thenReturn(authResponse);
 
-        mockMvc.perform(post("/api/auth/register")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(registerRequest)))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.token").value("sample.jwt.token"))
-                .andExpect(jsonPath("$.username").value("testuser"))
-                .andExpect(jsonPath("$.role").value("CUSTOMER"));
+                mockMvc.perform(post("/api/auth/register")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(registerRequest)))
+                                .andExpect(status().isCreated())
+                                .andExpect(jsonPath("$.token").value("sample.jwt.token"))
+                                .andExpect(jsonPath("$.username").value("testuser"))
+                                .andExpect(jsonPath("$.role").value("CUSTOMER"));
 
-        verify(authService, times(1)).register(any(RegisterRequest.class));
-    }
+                verify(authService, times(1)).register(any(RegisterRequest.class));
+        }
 
-    @Test
-    @DisplayName("Should return conflict when username already exists")
-    void shouldReturnConflictWhenUsernameExists() throws Exception {
-        when(authService.register(any(RegisterRequest.class)))
-                .thenThrow(new UserAlreadyExistsException("Username already exists"));
+        @Test
+        @DisplayName("Should return conflict when username already exists")
+        void shouldReturnConflictWhenUsernameExists() throws Exception {
+                when(authService.register(any(RegisterRequest.class)))
+                                .thenThrow(new UserAlreadyExistsException("Username already exists"));
 
-        mockMvc.perform(post("/api/auth/register")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(registerRequest)))
-                .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.message").value("Username already exists"));
-    }
+                mockMvc.perform(post("/api/auth/register")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(registerRequest)))
+                                .andExpect(status().isConflict())
+                                .andExpect(jsonPath("$.message").value("Username already exists"));
+        }
 
-    @Test
-    @DisplayName("Should return bad request for invalid registration data")
-    void shouldReturnBadRequestForInvalidData() throws Exception {
-        registerRequest.setUsername("");
-        registerRequest.setEmail("invalid-email");
+        @Test
+        @DisplayName("Should return bad request for invalid registration data")
+        void shouldReturnBadRequestForInvalidData() throws Exception {
+                registerRequest.setUsername("");
+                registerRequest.setEmail("invalid-email");
 
-        mockMvc.perform(post("/api/auth/register")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(registerRequest)))
-                .andExpect(status().isBadRequest());
-    }
+                mockMvc.perform(post("/api/auth/register")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(registerRequest)))
+                                .andExpect(status().isBadRequest());
+        }
 
-    @Test
-    @DisplayName("Should login user successfully with valid credentials")
-    void shouldLoginUserSuccessfully() throws Exception {
-        when(authService.login(any(LoginRequest.class))).thenReturn(authResponse);
+        @Test
+        @DisplayName("Should login user successfully with valid credentials")
+        void shouldLoginUserSuccessfully() throws Exception {
+                when(authService.login(any(LoginRequest.class))).thenReturn(authResponse);
 
-        mockMvc.perform(post("/api/auth/login")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(loginRequest)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.token").value("sample.jwt.token"))
-                .andExpect(jsonPath("$.username").value("testuser"));
+                mockMvc.perform(post("/api/auth/login")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(loginRequest)))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$.token").value("sample.jwt.token"))
+                                .andExpect(jsonPath("$.username").value("testuser"));
 
-        verify(authService, times(1)).login(any(LoginRequest.class));
-    }
+                verify(authService, times(1)).login(any(LoginRequest.class));
+        }
 
-    @Test
-    @DisplayName("Should return unauthorized for invalid credentials")
-    void shouldReturnUnauthorizedForInvalidCredentials() throws Exception {
-        when(authService.login(any(LoginRequest.class)))
-                .thenThrow(new InvalidCredentialsException("Invalid credentials"));
+        @Test
+        @DisplayName("Should return unauthorized for invalid credentials")
+        void shouldReturnUnauthorizedForInvalidCredentials() throws Exception {
+                when(authService.login(any(LoginRequest.class)))
+                                .thenThrow(new InvalidCredentialsException("Invalid credentials"));
 
-        mockMvc.perform(post("/api/auth/login")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(loginRequest)))
-                .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.message").value("Invalid username or password"));
-    }
+                mockMvc.perform(post("/api/auth/login")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(loginRequest)))
+                                .andExpect(status().isUnauthorized())
+                                .andExpect(jsonPath("$.message").value("Invalid username or password"));
+        }
 
-    @Test
-    @DisplayName("Should return bad request when login fields are blank")
-    void shouldReturnBadRequestWhenLoginFieldsAreBlank() throws Exception {
-        loginRequest.setUsername("");
-        loginRequest.setPassword("");
+        @Test
+        @DisplayName("Should return bad request when login fields are blank")
+        void shouldReturnBadRequestWhenLoginFieldsAreBlank() throws Exception {
+                loginRequest.setUsername("");
+                loginRequest.setPassword("");
 
-        mockMvc.perform(post("/api/auth/login")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(loginRequest)))
-                .andExpect(status().isBadRequest());
-    }
+                mockMvc.perform(post("/api/auth/login")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(loginRequest)))
+                                .andExpect(status().isBadRequest());
+        }
 }

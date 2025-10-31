@@ -1434,7 +1434,7 @@ export function AdminDashboard() {
                   const created = res?.data;
                   const newList = await refreshProducts();
                   const newProd = newList.find(
-                    (p) =>
+                    (p: (typeof newList)[number]) =>
                       p.code === (created?.productCode || payload.productCode)
                   );
                   if (newProd) setSelectedProductId(newProd.id);
