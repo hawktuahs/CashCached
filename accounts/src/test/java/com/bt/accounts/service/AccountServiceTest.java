@@ -51,8 +51,11 @@ class AccountServiceTest {
         private AccountService accountService;
 
         private AccountCreationRequest validRequest;
+        @SuppressWarnings("unused")
         private CustomerDto customerDto;
+        @SuppressWarnings("unused")
         private ProductDto productDto;
+        @SuppressWarnings("unused")
         private FdCalculationDto calculationDto;
         private String authToken;
 
@@ -116,6 +119,7 @@ class AccountServiceTest {
 
         @Test
         void createAccount_WithValidData_ShouldSucceed() throws InterruptedException {
+                @SuppressWarnings("unused")
                 String requestId = "test-req-123";
 
                 doNothing().when(kafkaProducerService).sendCustomerValidationRequest(any());

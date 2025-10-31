@@ -25,9 +25,9 @@ public class ProductController {
     @PostMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'BANKOFFICER')")
     @Operation(summary = "Create new product", description = "Creates a new banking product with configuration and pricing rules")
-    public ResponseEntity<ApiResponse> createProduct(@Valid @RequestBody ProductRequest request) {
+    public ResponseEntity<ApiResponse<ProductResponse>> createProduct(@Valid @RequestBody ProductRequest request) {
         ProductResponse response = productService.createProduct(request);
-        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.builder()
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.<ProductResponse>builder()
                 .success(true)
                 .message("Product created successfully")
                 .data(response)
@@ -37,10 +37,10 @@ public class ProductController {
     @PutMapping("/{code}")
     @PreAuthorize("hasAnyRole('ADMIN', 'BANKOFFICER')")
     @Operation(summary = "Update product", description = "Updates an existing product's configuration")
-    public ResponseEntity<ApiResponse> updateProduct(@PathVariable String code,
+    public ResponseEntity<ApiResponse<ProductResponse>> updateProduct(@PathVariable String code,
             @Valid @RequestBody ProductRequest request) {
         ProductResponse response = productService.updateProduct(code, request);
-        return ResponseEntity.ok(ApiResponse.builder()
+        return ResponseEntity.ok(ApiResponse.<ProductResponse>builder()
                 .success(true)
                 .message("Product updated successfully")
                 .data(response)
@@ -50,9 +50,9 @@ public class ProductController {
     @GetMapping("/{code}")
     @PreAuthorize("hasAnyRole('CUSTOMER', 'ADMIN', 'BANKOFFICER')")
     @Operation(summary = "Get product by code", description = "Retrieves product details by product code")
-    public ResponseEntity<ApiResponse> getProductByCode(@PathVariable String code) {
+    public ResponseEntity<ApiResponse<ProductResponse>> getProductByCode(@PathVariable String code) {
         ProductResponse response = productService.getProductByCode(code);
-        return ResponseEntity.ok(ApiResponse.builder()
+        return ResponseEntity.ok(ApiResponse.<ProductResponse>builder()
                 .success(true)
                 .message("Product retrieved successfully")
                 .data(response)
@@ -62,9 +62,9 @@ public class ProductController {
     @GetMapping
     @PreAuthorize("hasAnyRole('CUSTOMER', 'ADMIN', 'BANKOFFICER')")
     @Operation(summary = "Get all products", description = "Retrieves all available banking products")
-    public ResponseEntity<ApiResponse> getAllProducts() {
+    public ResponseEntity<ApiResponse<List<ProductResponse>>> getAllProducts() {
         List<ProductResponse> responses = productService.getAllProducts();
-        return ResponseEntity.ok(ApiResponse.builder()
+        return ResponseEntity.ok(ApiResponse.<List<ProductResponse>>builder()
                 .success(true)
                 .message("Products retrieved successfully")
                 .data(responses)
@@ -74,9 +74,10 @@ public class ProductController {
     @PostMapping("/search")
     @PreAuthorize("hasAnyRole('CUSTOMER', 'ADMIN', 'BANKOFFICER')")
     @Operation(summary = "Search products", description = "Searches products by type, currency, status, and dates")
-    public ResponseEntity<ApiResponse> searchProducts(@RequestBody ProductSearchRequest searchRequest) {
+    public ResponseEntity<ApiResponse<List<ProductResponse>>> searchProducts(
+            @RequestBody ProductSearchRequest searchRequest) {
         List<ProductResponse> responses = productService.searchProducts(searchRequest);
-        return ResponseEntity.ok(ApiResponse.builder()
+        return ResponseEntity.ok(ApiResponse.<List<ProductResponse>>builder()
                 .success(true)
                 .message("Search completed successfully")
                 .data(responses)
@@ -86,9 +87,9 @@ public class ProductController {
     @GetMapping("/status/{code}")
     @PreAuthorize("hasAnyRole('CUSTOMER', 'ADMIN', 'BANKOFFICER')")
     @Operation(summary = "Get product status", description = "Retrieves product status, validity, and applicable pricing rules")
-    public ResponseEntity<ApiResponse> getProductStatus(@PathVariable String code) {
+    public ResponseEntity<ApiResponse<ProductStatusResponse>> getProductStatus(@PathVariable String code) {
         ProductStatusResponse response = productService.getProductStatus(code);
-        return ResponseEntity.ok(ApiResponse.builder()
+        return ResponseEntity.ok(ApiResponse.<ProductStatusResponse>builder()
                 .success(true)
                 .message("Product status retrieved successfully")
                 .data(response)
@@ -98,9 +99,9 @@ public class ProductController {
     @DeleteMapping("/{code}")
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Delete product", description = "Deletes a product by product code (Admin only)")
-    public ResponseEntity<ApiResponse> deleteProduct(@PathVariable String code) {
+    public ResponseEntity<ApiResponse<Void>> deleteProduct(@PathVariable String code) {
         productService.deleteProduct(code);
-        return ResponseEntity.ok(ApiResponse.builder()
+        return ResponseEntity.ok(ApiResponse.<Void>builder()
                 .success(true)
                 .message("Product deleted successfully")
                 .build());

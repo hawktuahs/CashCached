@@ -53,7 +53,8 @@ public class JwtTokenProvider {
         String role = claims.get("role", String.class);
         if (role != null)
             return role;
-        List<String> roles = claims.get("roles", List.class);
+        @SuppressWarnings("unchecked")
+        List<String> roles = (List<String>) claims.get("roles", List.class);
         if (roles != null && !roles.isEmpty())
             return roles.get(0);
         return null;

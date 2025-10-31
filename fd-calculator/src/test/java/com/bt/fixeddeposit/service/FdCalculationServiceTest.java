@@ -48,6 +48,7 @@ class FdCalculationServiceTest {
         private FdCalculationService calculationService;
 
         private FdCalculationRequest validRequest;
+        @SuppressWarnings("unused")
         private ProductResponse validProduct;
         private FdCalculation savedCalculation;
         private String authToken;

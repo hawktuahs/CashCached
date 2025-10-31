@@ -7,7 +7,6 @@ import java.util.Collections;
 import org.web3j.abi.TypeReference;
 import org.web3j.abi.datatypes.Address;
 import org.web3j.abi.datatypes.Function;
-import org.web3j.abi.datatypes.Type;
 import org.web3j.abi.datatypes.generated.Uint256;
 import org.web3j.protocol.Web3j;
 import org.web3j.tx.Contract;
@@ -40,7 +39,7 @@ public class CashCachedContract extends Contract {
     public RemoteFunctionCall<TransactionReceipt> mint(String receiver, BigInteger amount) {
         final Function function = new Function(
                 FUNC_MINT,
-                Arrays.<Type>asList(new Address(receiver), new Uint256(amount)),
+                Arrays.asList(new Address(receiver), new Uint256(amount)),
                 Collections.emptyList());
         return executeRemoteCallTransaction(function);
     }
@@ -48,7 +47,7 @@ public class CashCachedContract extends Contract {
     public RemoteFunctionCall<TransactionReceipt> burnFromTreasury(BigInteger amount) {
         final Function function = new Function(
                 FUNC_BURN_FROM_TREASURY,
-                Arrays.<Type>asList(new Uint256(amount)),
+                Arrays.asList(new Uint256(amount)),
                 Collections.emptyList());
         return executeRemoteCallTransaction(function);
     }
@@ -56,7 +55,7 @@ public class CashCachedContract extends Contract {
     public RemoteFunctionCall<TransactionReceipt> transfer(String to, BigInteger amount) {
         final Function function = new Function(
                 FUNC_TRANSFER,
-                Arrays.<Type>asList(new Address(to), new Uint256(amount)),
+                Arrays.asList(new Address(to), new Uint256(amount)),
                 Collections.emptyList());
         return executeRemoteCallTransaction(function);
     }
@@ -64,7 +63,7 @@ public class CashCachedContract extends Contract {
     public RemoteFunctionCall<BigInteger> balanceOf(String holder) {
         final Function function = new Function(
                 FUNC_BALANCE_OF,
-                Arrays.<Type>asList(new Address(holder)),
+                Arrays.asList(new Address(holder)),
                 Arrays.<TypeReference<?>>asList(new TypeReference<Uint256>() {
                 }));
         return executeRemoteCallSingleValueReturn(function, BigInteger.class);

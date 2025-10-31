@@ -1,6 +1,5 @@
 package com.bt.accounts.service;
 
-import com.bt.accounts.client.ProductDto;
 import com.bt.accounts.dto.PricingRuleDto;
 import com.bt.accounts.entity.FdAccount;
 import com.bt.accounts.exception.ServiceIntegrationException;

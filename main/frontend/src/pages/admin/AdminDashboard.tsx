@@ -212,7 +212,12 @@ export function AdminDashboard() {
           api.get("/api/v1/product"),
         ]);
         const c = Array.isArray(custRes.data) ? custRes.data : [];
-        const p = Array.isArray(prodRes.data) ? prodRes.data : [];
+        const root = prodRes?.data;
+        const p = Array.isArray(root?.data)
+          ? root.data
+          : Array.isArray(root)
+          ? root
+          : [];
         const mappedCustomers = c.map((u: any) => ({
           id: String(u.id),
           name: String(u.fullName || u.username || u.email || u.id),
@@ -223,6 +228,11 @@ export function AdminDashboard() {
           code: String(x.productCode || ""),
           name: String(x.productName || x.productCode || ""),
         }));
+        console.log(
+          "AdminDashboard loaded products:",
+          mappedProducts.length,
+          "items"
+        );
         setCustomers(mappedCustomers);
         setProducts(mappedProducts);
         if (mappedCustomers.length > 0)
@@ -531,12 +541,18 @@ export function AdminDashboard() {
 
   const refreshProducts = async () => {
     const prodRes = await api.get("/api/v1/product");
-    const p = Array.isArray(prodRes.data) ? prodRes.data : [];
+    const root = prodRes?.data;
+    const p = Array.isArray(root?.data)
+      ? root.data
+      : Array.isArray(root)
+      ? root
+      : [];
     const mapped = p.map((x: any) => ({
       id: Number(x.id ?? 0),
       code: String(x.productCode || ""),
       name: String(x.productName || x.productCode || ""),
     }));
+    console.log("refreshProducts loaded:", mapped.length, "items");
     setProducts(mapped);
     return mapped;
   };

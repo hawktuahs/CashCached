@@ -16,7 +16,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -46,7 +45,7 @@ public class AccountService {
     public AccountResponse createAccount(AccountCreationRequest request, String authToken) {
         validateUserRole();
 
-        CustomerDto customer = validateCustomer(request.getCustomerId(), authToken);
+        validateCustomer(request.getCustomerId(), authToken);
         ProductDto product = validateProduct(request.getProductCode(), authToken);
 
         validateProductRules(request, product);
@@ -230,13 +229,6 @@ public class AccountService {
         }
     }
 
-    private String resolveProductServiceToken(String authToken) {
-        if (authToken != null && !authToken.isBlank()) {
-            return authToken;
-        }
-        throw new ServiceIntegrationException("Missing authorization token for service call");
-    }
-
     private CustomerDto validateCustomer(String customerId, String authToken) {
         String requestId = UUID.randomUUID().toString();
         log.info("========== VALIDATING CUSTOMER {} ==========", customerId);
@@ -392,7 +384,7 @@ public class AccountService {
         }
         try {
             BigDecimal normalized = amount.stripTrailingZeros();
-            BigDecimal tokens = normalized.setScale(0, RoundingMode.UNNECESSARY);
+            BigDecimal tokens = normalized.setScale(0, RoundingMode.DOWN);
             if (tokens.compareTo(BigDecimal.ONE) < 0) {
                 throw new InvalidAccountDataException("Amount must be at least 1 CashCached token (1 KWD)");
             }

@@ -24,7 +24,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 import java.math.RoundingMode;
-import java.time.temporal.ChronoUnit;
 
 @Component
 @EnableScheduling
@@ -38,8 +37,6 @@ public class AccrualScheduler {
     private final CashCachedService cashCachedService;
     private final PricingRuleEvaluator pricingRuleEvaluator;
     private final TimeProvider timeProvider;
-
-    private static final int INTERVAL_YEARS = 1;
 
     @Scheduled(fixedDelay = 60_000)
     public void runAccruals() {
@@ -71,18 +68,23 @@ public class AccrualScheduler {
     }
 
     private BigDecimal resolveAppliedRate(FdAccount account, PricingRuleEvaluator.EvaluationResult pricing) {
-        BigDecimal base = account.getBaseInterestRate() != null ? account.getBaseInterestRate() : account.getInterestRate();
+        BigDecimal base = account.getBaseInterestRate() != null ? account.getBaseInterestRate()
+                : account.getInterestRate();
         BigDecimal applied = pricing.getAppliedRate() != null ? pricing.getAppliedRate() : base;
-        return applied != null ? applied.setScale(2, RoundingMode.HALF_UP) : BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+        return applied != null ? applied.setScale(2, RoundingMode.HALF_UP)
+                : BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
     }
 
-    private boolean shouldUpdatePricingMetadata(FdAccount account, PricingRuleEvaluator.EvaluationResult pricing, BigDecimal appliedRate) {
-        boolean rateChanged = account.getInterestRate() == null || account.getInterestRate().compareTo(appliedRate) != 0;
+    private boolean shouldUpdatePricingMetadata(FdAccount account, PricingRuleEvaluator.EvaluationResult pricing,
+            BigDecimal appliedRate) {
+        boolean rateChanged = account.getInterestRate() == null
+                || account.getInterestRate().compareTo(appliedRate) != 0;
         Long ruleId = pricing.getRule() != null ? pricing.getRule().getId() : null;
         String ruleName = pricing.getRule() != null ? pricing.getRule().getRuleName() : null;
         boolean idChanged = !Objects.equals(account.getActivePricingRuleId(), ruleId);
         boolean nameChanged = !Objects.equals(account.getActivePricingRuleName(), ruleName);
-        boolean appliedAtChanged = pricing.getRule() != null ? account.getPricingRuleAppliedAt() == null : account.getPricingRuleAppliedAt() != null;
+        boolean appliedAtChanged = pricing.getRule() != null ? account.getPricingRuleAppliedAt() == null
+                : account.getPricingRuleAppliedAt() != null;
         return rateChanged || idChanged || nameChanged || appliedAtChanged;
     }
 
@@ -92,13 +94,15 @@ public class AccrualScheduler {
         }
 
         String accountNo = account.getAccountNo();
-        BigDecimal totalAccrued = account.getTotalInterestAccrued() != null ? account.getTotalInterestAccrued() : BigDecimal.ZERO;
+        BigDecimal totalAccrued = account.getTotalInterestAccrued() != null ? account.getTotalInterestAccrued()
+                : BigDecimal.ZERO;
         LocalDateTime nextAccrual = resolveNextAccrual(account);
         LocalDateTime createdAt = account.getCreatedAt() != null ? account.getCreatedAt() : now;
 
         boolean metadataUpdated = false;
 
-        while (nextAccrual != null && !nextAccrual.isAfter(now) && account.getStatus() == FdAccount.AccountStatus.ACTIVE) {
+        while (nextAccrual != null && !nextAccrual.isAfter(now)
+                && account.getStatus() == FdAccount.AccountStatus.ACTIVE) {
             BigDecimal currentBalance = calculateCurrentBalance(accountNo);
             PricingRuleEvaluator.EvaluationResult pricing = evaluatePricing(account, currentBalance);
             BigDecimal appliedRate = resolveAppliedRate(account, pricing);
@@ -119,9 +123,11 @@ public class AccrualScheduler {
                 TransactionResponse txn = creditInterest(account, interest, nextAccrual);
                 currentBalance = txn.getBalanceAfter();
                 totalAccrued = totalAccrued.add(interest);
-                log.info("Accrued {} tokens interest for account {} on {}", interest, accountNo, nextAccrual.toLocalDate());
+                log.info("Accrued {} tokens interest for account {} on {}", interest, accountNo,
+                        nextAccrual.toLocalDate());
             } else {
-                log.debug("Accrual skipped for account={} on {} due to interest {} < 1", accountNo, nextAccrual.toLocalDate(), interest);
+                log.debug("Accrual skipped for account={} on {} due to interest {} < 1", accountNo,
+                        nextAccrual.toLocalDate(), interest);
             }
 
             account.setLastInterestAccrualAt(nextAccrual);

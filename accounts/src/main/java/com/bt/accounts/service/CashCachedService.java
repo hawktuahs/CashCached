@@ -355,9 +355,9 @@ public class CashCachedService {
             JsonNode ratesNode = root.path("rates");
             Map<String, BigDecimal> result = new HashMap<>();
             if (ratesNode.isObject()) {
-                ratesNode.fields().forEachRemaining(entry -> {
-                    BigDecimal value = entry.getValue().decimalValue();
-                    result.put(normalizeCurrency(entry.getKey()), value);
+                ratesNode.fieldNames().forEachRemaining(fieldName -> {
+                    BigDecimal value = ratesNode.get(fieldName).decimalValue();
+                    result.put(normalizeCurrency(fieldName), value);
                 });
             }
             result.put(base, BigDecimal.ONE);
