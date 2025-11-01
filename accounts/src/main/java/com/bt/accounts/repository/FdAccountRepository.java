@@ -1,6 +1,8 @@
 package com.bt.accounts.repository;
 
 import com.bt.accounts.entity.FdAccount;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -29,6 +31,18 @@ public interface FdAccountRepository extends JpaRepository<FdAccount, Long> {
 
     @Query("SELECT COUNT(a) FROM FdAccount a WHERE a.status = :status")
     Long countByStatus(@Param("status") FdAccount.AccountStatus status);
+
+    @Query("SELECT a FROM FdAccount a WHERE " +
+            "(:customerId IS NULL OR a.customerId = :customerId) AND " +
+            "(:productCode IS NULL OR a.productCode = :productCode) AND " +
+            "(:status IS NULL OR a.status = :status) AND " +
+            "(:branchCode IS NULL OR a.branchCode = :branchCode)")
+    Page<FdAccount> searchAccounts(
+            @Param("customerId") String customerId,
+            @Param("productCode") String productCode,
+            @Param("status") FdAccount.AccountStatus status,
+            @Param("branchCode") String branchCode,
+            Pageable pageable);
 
     boolean existsByAccountNo(String accountNo);
 }

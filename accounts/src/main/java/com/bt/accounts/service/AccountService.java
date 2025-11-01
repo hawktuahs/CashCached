@@ -3,6 +3,7 @@ package com.bt.accounts.service;
 import com.bt.accounts.client.*;
 import com.bt.accounts.dto.*;
 import com.bt.accounts.entity.FdAccount;
+import com.bt.accounts.entity.AccountTransaction;
 import com.bt.accounts.exception.*;
 import com.bt.accounts.event.*;
 import com.bt.accounts.repository.FdAccountRepository;
@@ -85,6 +86,9 @@ public class AccountService {
         issueRequest.setAmount(principalTokens);
         issueRequest.setReference("Account creation " + accountNo);
         cashCachedService.issue(issueRequest);
+
+        recordInitialDepositTransaction(savedAccount, principalTokens);
+
         log.info("Created FD account: {} for customer: {}", accountNo, request.getCustomerId());
 
         return AccountResponse.fromEntity(savedAccount);
@@ -171,6 +175,51 @@ public class AccountService {
                     return r;
                 })
                 .collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public PagedResponse<AccountResponse> searchAccounts(AccountSearchRequest searchRequest) {
+        org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(
+                searchRequest.getPage(),
+                searchRequest.getSize(),
+                org.springframework.data.domain.Sort.Direction.fromString(searchRequest.getSortDirection()),
+                searchRequest.getSortBy());
+
+        org.springframework.data.domain.Page<FdAccount> page;
+
+        if (searchRequest.getCustomerId() != null || searchRequest.getProductCode() != null ||
+                searchRequest.getStatus() != null || searchRequest.getBranchCode() != null) {
+            FdAccount.AccountStatus status = null;
+            if (searchRequest.getStatus() != null) {
+                status = FdAccount.AccountStatus.valueOf(searchRequest.getStatus());
+            }
+            page = accountRepository.searchAccounts(
+                    searchRequest.getCustomerId(),
+                    searchRequest.getProductCode(),
+                    status,
+                    searchRequest.getBranchCode(),
+                    pageable);
+        } else {
+            page = accountRepository.findAll(pageable);
+        }
+
+        List<AccountResponse> content = page.getContent().stream()
+                .map(a -> {
+                    AccountResponse r = AccountResponse.fromEntity(a);
+                    r.setCurrentBalance(computeCurrentBalance(a.getAccountNo()));
+                    return r;
+                })
+                .collect(Collectors.toList());
+
+        return PagedResponse.<AccountResponse>builder()
+                .content(content)
+                .page(page.getNumber())
+                .size(page.getSize())
+                .totalElements(page.getTotalElements())
+                .totalPages(page.getTotalPages())
+                .first(page.isFirst())
+                .last(page.isLast())
+                .build();
     }
 
     @Transactional
@@ -408,5 +457,164 @@ public class AccountService {
             return pa != null ? pa : BigDecimal.ZERO;
         }
         return txns.get(0).getBalanceAfter();
+    }
+
+    @Transactional
+    @CacheEvict(value = { "accounts", "customerAccounts" }, allEntries = true)
+    public AccountResponse createAccountV1(AccountCreationV1Request request, String authToken) {
+        validateUserRole();
+
+        validateCustomer(request.getCustomerId(), authToken);
+        ProductDto product = validateProduct(request.getProductCode(), authToken);
+
+        BigDecimal principalTokens = requireWholeTokens(request.getPrincipalAmount());
+        if (principalTokens.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new InvalidAccountDataException("Principal must be at least 1 CashCached token (1 KWD)");
+        }
+
+        AccountCreationRequest fullRequest = AccountCreationRequest.builder()
+                .customerId(request.getCustomerId())
+                .productCode(request.getProductCode())
+                .principalAmount(principalTokens)
+                .interestRate(product.getMinInterestRate())
+                .tenureMonths(product.getMinTermMonths())
+                .branchCode(request.getBranchCode())
+                .remarks(request.getRemarks())
+                .build();
+
+        validateProductRules(fullRequest, product);
+
+        FdCalculationDto calculation = calculateMaturity(fullRequest, authToken);
+        BigDecimal maturityTokens = requireWholeTokens(calculation.getMaturityAmount());
+
+        String accountNo = accountNumberGenerator.generateAccountNumber(request.getBranchCode());
+
+        FdAccount account = FdAccount.builder()
+                .accountNo(accountNo)
+                .customerId(request.getCustomerId())
+                .productCode(request.getProductCode())
+                .productRefId(product.getId())
+                .principalAmount(principalTokens)
+                .interestRate(product.getMinInterestRate())
+                .baseInterestRate(product.getMinInterestRate())
+                .tenureMonths(product.getMinTermMonths())
+                .productMaxTenureMonths(product.getMaxTermMonths())
+                .maturityAmount(maturityTokens)
+                .branchCode(request.getBranchCode())
+                .status(FdAccount.AccountStatus.ACTIVE)
+                .createdBy(getCurrentUsername())
+                .build();
+
+        FdAccount savedAccount = accountRepository.save(account);
+        CashCachedIssueRequest issueRequest = new CashCachedIssueRequest();
+        issueRequest.setCustomerId(request.getCustomerId());
+        issueRequest.setAmount(principalTokens);
+        issueRequest.setReference("Account creation " + accountNo);
+        cashCachedService.issue(issueRequest);
+        log.info("Created V1 FD account (product defaults): {} for customer: {}", accountNo, request.getCustomerId());
+
+        return AccountResponse.fromEntity(savedAccount);
+    }
+
+    @Transactional
+    @CacheEvict(value = { "accounts", "customerAccounts" }, allEntries = true)
+    public AccountResponse createAccountV2(AccountCreationV2Request request, String authToken) {
+        validateUserRole();
+
+        validateCustomer(request.getCustomerId(), authToken);
+        ProductDto product = validateProduct(request.getProductCode(), authToken);
+
+        BigDecimal principalTokens = requireWholeTokens(request.getPrincipalAmount());
+        if (principalTokens.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new InvalidAccountDataException("Principal must be at least 1 CashCached token (1 KWD)");
+        }
+
+        BigDecimal finalInterestRate = request.getCustomInterestRate() != null
+                ? request.getCustomInterestRate()
+                : product.getMinInterestRate();
+        Integer finalTenure = request.getCustomTenureMonths() != null
+                ? request.getCustomTenureMonths()
+                : product.getMinTermMonths();
+
+        if (finalInterestRate.compareTo(product.getMinInterestRate()) < 0 ||
+                finalInterestRate.compareTo(product.getMaxInterestRate()) > 0) {
+            throw new InvalidAccountDataException(
+                    String.format("Interest rate %.2f%% is outside product range %.2f%% - %.2f%%",
+                            finalInterestRate, product.getMinInterestRate(), product.getMaxInterestRate()));
+        }
+
+        if (finalTenure < product.getMinTermMonths() || finalTenure > product.getMaxTermMonths()) {
+            throw new InvalidAccountDataException(
+                    String.format("Tenure %d months is outside product range %d - %d months",
+                            finalTenure, product.getMinTermMonths(), product.getMaxTermMonths()));
+        }
+
+        AccountCreationRequest fullRequest = AccountCreationRequest.builder()
+                .customerId(request.getCustomerId())
+                .productCode(request.getProductCode())
+                .principalAmount(principalTokens)
+                .interestRate(finalInterestRate)
+                .tenureMonths(finalTenure)
+                .branchCode(request.getBranchCode())
+                .remarks(request.getRemarks())
+                .build();
+
+        validateProductRules(fullRequest, product);
+
+        FdCalculationDto calculation = calculateMaturity(fullRequest, authToken);
+        BigDecimal maturityTokens = requireWholeTokens(calculation.getMaturityAmount());
+
+        String accountNo = accountNumberGenerator.generateAccountNumber(request.getBranchCode());
+
+        FdAccount account = FdAccount.builder()
+                .accountNo(accountNo)
+                .customerId(request.getCustomerId())
+                .productCode(request.getProductCode())
+                .productRefId(product.getId())
+                .principalAmount(principalTokens)
+                .interestRate(finalInterestRate)
+                .baseInterestRate(finalInterestRate)
+                .tenureMonths(finalTenure)
+                .productMaxTenureMonths(product.getMaxTermMonths())
+                .maturityAmount(maturityTokens)
+                .branchCode(request.getBranchCode())
+                .status(FdAccount.AccountStatus.ACTIVE)
+                .createdBy(getCurrentUsername())
+                .build();
+
+        FdAccount savedAccount = accountRepository.save(account);
+        CashCachedIssueRequest issueRequest = new CashCachedIssueRequest();
+        issueRequest.setCustomerId(request.getCustomerId());
+        issueRequest.setAmount(principalTokens);
+        issueRequest.setReference("Account creation " + accountNo);
+        cashCachedService.issue(issueRequest);
+
+        recordInitialDepositTransaction(savedAccount, principalTokens);
+
+        log.info("Created V2 FD account (custom values): {} for customer: {} with rate: {}%, tenure: {} months",
+                accountNo, request.getCustomerId(), finalInterestRate, finalTenure);
+
+        return AccountResponse.fromEntity(savedAccount);
+    }
+
+    private void recordInitialDepositTransaction(FdAccount account, BigDecimal principalTokens) {
+        try {
+            String transactionId = UUID.randomUUID().toString();
+            AccountTransaction transaction = AccountTransaction.builder()
+                    .transactionId(transactionId)
+                    .accountNo(account.getAccountNo())
+                    .transactionType(AccountTransaction.TransactionType.DEPOSIT)
+                    .amount(principalTokens)
+                    .balanceAfter(principalTokens)
+                    .description("Initial deposit for account creation")
+                    .referenceNo("ACCOUNT_CREATION")
+                    .processedBy(getCurrentUsername())
+                    .transactionDate(LocalDateTime.now())
+                    .build();
+            transactionRepository.save(transaction);
+            log.info("Recorded initial deposit transaction: {} for account: {}", transactionId, account.getAccountNo());
+        } catch (Exception e) {
+            log.error("Failed to record initial deposit transaction for account: {}", account.getAccountNo(), e);
+        }
     }
 }

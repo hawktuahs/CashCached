@@ -66,6 +66,10 @@ accounts:
   sequence:
     initial-value: 10000001
     prefix: FD
+  iban:
+    enabled: true
+    country-code: IN
+    bank-code: SBIN
 
 cashcached:
   rpc-url: ${CASHCACHED_RPC_URL:https://polygon-amoy.g.alchemy.com/v2/demo}

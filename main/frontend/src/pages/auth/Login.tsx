@@ -180,7 +180,7 @@ export function Login() {
                   <Button type="submit" className="w-full" disabled={isLoading}>
                     {isLoading ? (
                       <>
-                        <Spinner className="mr-2 h-4 w-4" />
+                        <Spinner className="h-4 w-4 animate-spin" />
                         {t("auth.login.signingIn")}
                       </>
                     ) : (
@@ -213,7 +213,7 @@ export function Login() {
                   >
                     {isLoading ? (
                       <>
-                        <Spinner className="mr-2 h-4 w-4" />
+                        <Spinner className="h-4 w-4 animate-spin" />
                         {t("auth.otp.verifying")}
                       </>
                     ) : (

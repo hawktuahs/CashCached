@@ -247,7 +247,7 @@ export function ProductForm() {
           size="sm"
           onClick={() => navigate("/products")}
         >
-          <ArrowLeft className="mr-2 h-4 w-4" />
+          <ArrowLeft className="h-4 w-4" />
           Back to Products
         </Button>
         <div>
@@ -553,12 +553,12 @@ export function ProductForm() {
                 <Button type="submit" disabled={isSaving}>
                   {isSaving ? (
                     <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      <Loader2 className="h-4 w-4 animate-spin" />
                       {isEdit ? "Updating..." : "Creating..."}
                     </>
                   ) : (
                     <>
-                      <Save className="mr-2 h-4 w-4" />
+                      <Save className="h-4 w-4" />
                       {isEdit ? "Update Product" : "Create Product"}
                     </>
                   )}

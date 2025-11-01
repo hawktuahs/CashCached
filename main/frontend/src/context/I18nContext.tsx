@@ -16,6 +16,9 @@ const dict: Dict = {
   "nav.accounts": { en: "My Accounts", ja: "口座" },
   "nav.admin": { en: "Administration", ja: "管理" },
   "nav.admin.dashboard": { en: "Admin Dashboard", ja: "管理ダッシュボード" },
+  "nav.allAccounts": { en: "All Accounts", ja: "すべての口座" },
+  "nav.openAccount": { en: "Open Account", ja: "口座を開く" },
+  "nav.stablecoin": { en: "CashCached", ja: "CashCached" },
   "brand.name": { en: "CashCached", ja: "CashCached" },
   "brand.subtitle": {
     en: "CashCached Digital Banking",
@@ -744,6 +747,203 @@ const dict: Dict = {
   "role.ADMIN": { en: "Admin", ja: "管理者" },
   "role.BANKOFFICER": { en: "Bank Officer", ja: "銀行員" },
   "role.STAFF": { en: "Staff", ja: "スタッフ" },
+  "accounts.create.title": {
+    en: "Create FD Account",
+    ja: "定期預金口座を開設",
+  },
+  "accounts.create.button": { en: "Create Account", ja: "口座を開設" },
+  "accounts.create.openAccount": { en: "Open Account", ja: "口座開設" },
+  "accounts.create.selectCustomer": { en: "Select Customer", ja: "顧客を選択" },
+  "accounts.create.selectCustomerDescription": {
+    en: "Choose the customer for whom you want to open an account",
+    ja: "口座を開設する顧客を選択してください",
+  },
+  "accounts.create.customer": { en: "Customer", ja: "顧客" },
+  "accounts.create.selectCustomerPlaceholder": {
+    en: "Select a customer",
+    ja: "顧客を選択",
+  },
+  "accounts.create.loadingCustomers": {
+    en: "Loading customers...",
+    ja: "顧客を読み込み中...",
+  },
+  "accounts.create.noCustomers": {
+    en: "No customers available",
+    ja: "利用可能な顧客がいません",
+  },
+  "accounts.create.description": {
+    en: "Create a new Fixed Deposit account with standard or custom parameters",
+    ja: "標準またはカスタムパラメータで新しい定期預金口座を作成",
+  },
+  "accounts.create.standardTab": {
+    en: "Standard Account",
+    ja: "標準口座",
+  },
+  "accounts.create.customTab": { en: "Custom Account", ja: "カスタム口座" },
+  "accounts.create.productDefaults": {
+    en: "Product Defaults",
+    ja: "商品デフォルト",
+  },
+  "accounts.create.flexible": { en: "Flexible", ja: "柔軟" },
+  "accounts.create.standardTitle": {
+    en: "Standard FD Account",
+    ja: "標準定期預金口座",
+  },
+  "accounts.create.standardDescription": {
+    en: "Create account with default interest rate and tenure from the selected product. Both standard account number and IBAN will be generated automatically.",
+    ja: "選択した商品のデフォルトの金利と期間で口座を作成します。標準口座番号とIBANが自動的に生成されます。",
+  },
+  "accounts.create.customTitle": {
+    en: "Custom FD Account",
+    ja: "カスタム定期預金口座",
+  },
+  "accounts.create.customDescription": {
+    en: "Create account with custom interest rate and tenure within product limits. Both standard account number and IBAN will be generated automatically.",
+    ja: "商品制限内でカスタム金利と期間で口座を作成します。標準口座番号とIBANが自動的に生成されます。",
+  },
+  "accounts.create.customerId": { en: "Customer ID", ja: "顧客ID" },
+  "accounts.create.customerIdPlaceholder": {
+    en: "Enter customer ID",
+    ja: "顧客IDを入力",
+  },
+  "accounts.create.product": { en: "Product", ja: "商品" },
+  "accounts.create.selectProduct": {
+    en: "Select a product",
+    ja: "商品を選択",
+  },
+  "accounts.create.loadingProducts": {
+    en: "Loading products...",
+    ja: "商品を読み込み中...",
+  },
+  "accounts.create.productDefaultsLabel": {
+    en: "Product Defaults:",
+    ja: "商品デフォルト：",
+  },
+  "accounts.create.productLimitsLabel": {
+    en: "Product Limits:",
+    ja: "商品制限：",
+  },
+  "accounts.create.interestRate": { en: "Interest Rate", ja: "金利" },
+  "accounts.create.tenure": { en: "Tenure", ja: "期間" },
+  "accounts.create.range": { en: "Range", ja: "範囲" },
+  "accounts.create.amount": { en: "Amount", ja: "金額" },
+  "accounts.create.principalAmount": {
+    en: "Principal Amount (CashCached Tokens)",
+    ja: "元本金額（CashCachedトークン）",
+  },
+  "accounts.create.principalAmountPlaceholder": {
+    en: "Enter principal amount",
+    ja: "元本金額を入力",
+  },
+  "accounts.create.customInterestRate": {
+    en: "Custom Interest Rate (%)",
+    ja: "カスタム金利（％）",
+  },
+  "accounts.create.customTenure": {
+    en: "Custom Tenure (Months)",
+    ja: "カスタム期間（月）",
+  },
+  "accounts.create.branchCode": { en: "Branch Code", ja: "支店コード" },
+  "accounts.create.branchCodeHint": {
+    en: "Alphanumeric uppercase (3-20 characters)",
+    ja: "英数字大文字（3-20文字）",
+  },
+  "accounts.create.remarks": { en: "Remarks (Optional)", ja: "備考（任意）" },
+  "accounts.create.remarksPlaceholder": {
+    en: "Additional notes or remarks",
+    ja: "追加のメモまたは備考",
+  },
+  "accounts.create.creating": {
+    en: "Creating Account...",
+    ja: "口座を作成中...",
+  },
+  "accounts.create.createStandard": {
+    en: "Create Standard Account",
+    ja: "標準口座を作成",
+  },
+  "accounts.create.createCustom": {
+    en: "Create Custom Account",
+    ja: "カスタム口座を作成",
+  },
+  "accounts.create.successDefault": {
+    en: "Account created successfully with product defaults!",
+    ja: "商品デフォルトで口座が正常に作成されました！",
+  },
+  "accounts.create.successCustom": {
+    en: "Account created successfully with custom values!",
+    ja: "カスタム値で口座が正常に作成されました！",
+  },
+  "accounts.create.error": {
+    en: "Failed to create account",
+    ja: "口座の作成に失敗しました",
+  },
+  "admin.accounts.title": { en: "All Accounts", ja: "すべての口座" },
+  "admin.accounts.description": {
+    en: "Manage and view all customer accounts with advanced filters and pagination",
+    ja: "高度なフィルターとページネーションですべての顧客口座を管理・表示",
+  },
+  "admin.accounts.filters": { en: "Filters", ja: "フィルター" },
+  "admin.accounts.filtersDescription": {
+    en: "Search and filter accounts by various criteria",
+    ja: "さまざまな条件で口座を検索・フィルタリング",
+  },
+  "admin.accounts.customerId": { en: "Customer ID", ja: "顧客ID" },
+  "admin.accounts.customerIdPlaceholder": {
+    en: "Enter customer ID",
+    ja: "顧客IDを入力",
+  },
+  "admin.accounts.productCode": { en: "Product Code", ja: "商品コード" },
+  "admin.accounts.productCodePlaceholder": {
+    en: "Enter product code",
+    ja: "商品コードを入力",
+  },
+  "admin.accounts.status": { en: "Status", ja: "ステータス" },
+  "admin.accounts.statusPlaceholder": {
+    en: "Select status",
+    ja: "ステータスを選択",
+  },
+  "admin.accounts.allStatus": { en: "All Status", ja: "すべてのステータス" },
+  "admin.accounts.active": { en: "Active", ja: "アクティブ" },
+  "admin.accounts.closed": { en: "Closed", ja: "閉鎖" },
+  "admin.accounts.matured": { en: "Matured", ja: "満期" },
+  "admin.accounts.suspended": { en: "Suspended", ja: "停止中" },
+  "admin.accounts.branchCode": { en: "Branch Code", ja: "支店コード" },
+  "admin.accounts.branchCodePlaceholder": {
+    en: "Enter branch code",
+    ja: "支店コードを入力",
+  },
+  "admin.accounts.list": { en: "Accounts List", ja: "口座リスト" },
+  "admin.accounts.showing": {
+    en: "Showing {{from}} to {{to}} of {{total}} accounts",
+    ja: "{{total}}件中{{from}}〜{{to}}件を表示",
+  },
+  "admin.accounts.pageSize": { en: "Per page", ja: "件数" },
+  "admin.accounts.accountNo": { en: "Account No", ja: "口座番号" },
+  "admin.accounts.principal": { en: "Principal", ja: "元本" },
+  "admin.accounts.interestRate": { en: "Interest Rate", ja: "金利" },
+  "admin.accounts.tenure": { en: "Tenure", ja: "期間" },
+  "admin.accounts.actions": { en: "Actions", ja: "操作" },
+  "admin.accounts.noAccounts": {
+    en: "No accounts found",
+    ja: "口座が見つかりません",
+  },
+  "admin.accounts.page": {
+    en: "Page {{current}} of {{total}}",
+    ja: "{{total}}ページ中{{current}}ページ",
+  },
+  "action.search": { en: "Search", ja: "検索" },
+  "action.reset": { en: "Reset", ja: "リセット" },
+  "action.previous": { en: "Previous", ja: "前へ" },
+  "action.next": { en: "Next", ja: "次へ" },
+  "action.details": { en: "Details", ja: "詳細" },
+  "nav.administration": { en: "Administration", ja: "管理" },
+  "common.loading": { en: "Loading...", ja: "読み込み中..." },
+  "common.min": { en: "Min", ja: "最小" },
+  "common.max": { en: "Max", ja: "最大" },
+  "common.tokens": { en: "tokens", ja: "トークン" },
+  "common.optional": { en: "Optional", ja: "任意" },
+  "common.range": { en: "Range", ja: "範囲" },
+  "common.cancel": { en: "Cancel", ja: "キャンセル" },
 };
 
 interface I18nContextType {

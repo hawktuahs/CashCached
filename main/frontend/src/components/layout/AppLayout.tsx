@@ -34,12 +34,14 @@ import {
   Menu,
   X,
   Coins,
+  List,
+  UserPlus,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useI18n } from "@/context/I18nContext";
 import { api } from "@/lib/api";
 
-const navigation = [
+const customerNavigation = [
   {
     title: "Overview",
     items: [
@@ -72,6 +74,69 @@ const navigation = [
         title: "My Accounts",
         url: "/accounts",
         icon: CreditCard,
+      },
+    ],
+  },
+];
+
+const staffNavigation = [
+  {
+    title: "Overview",
+    items: [
+      {
+        title: "Dashboard",
+        url: "/dashboard",
+        icon: LayoutDashboard,
+      },
+    ],
+  },
+  {
+    title: "Banking",
+    items: [
+      {
+        title: "My Profile",
+        url: "/profile",
+        icon: User,
+      },
+      {
+        title: "Products & Pricing",
+        url: "/products",
+        icon: Package,
+      },
+      {
+        title: "FD Calculator",
+        url: "/fd-calculator",
+        icon: Calculator,
+      },
+      {
+        title: "My Accounts",
+        url: "/accounts",
+        icon: CreditCard,
+      },
+    ],
+  },
+  {
+    title: "Administration",
+    items: [
+      {
+        title: "Admin Dashboard",
+        url: "/admin",
+        icon: LayoutDashboard,
+      },
+      {
+        title: "All Accounts",
+        url: "/admin/accounts",
+        icon: List,
+      },
+      {
+        title: "Open Account",
+        url: "/accounts/new",
+        icon: UserPlus,
+      },
+      {
+        title: "CashCached",
+        url: "/financials/stablecoin",
+        icon: Coins,
       },
     ],
   },
@@ -238,13 +303,15 @@ function AppSidebar() {
             </SidebarGroupContent>
           </SidebarGroup>
         )}
-        {navigation.map((group) => (
+        {(isStaff ? staffNavigation : customerNavigation).map((group) => (
           <SidebarGroup key={group.title}>
             <SidebarGroupLabel>
               {group.title === "Overview"
                 ? t("nav.overview")
                 : group.title === "Banking"
                 ? t("nav.banking")
+                : group.title === "Administration"
+                ? t("nav.administration")
                 : group.title}
             </SidebarGroupLabel>
             <SidebarGroupContent>
@@ -268,6 +335,14 @@ function AppSidebar() {
                           ? t("nav.calculator")
                           : item.title === "My Accounts"
                           ? t("nav.accounts")
+                          : item.title === "Admin Dashboard"
+                          ? t("nav.admin.dashboard")
+                          : item.title === "All Accounts"
+                          ? t("nav.allAccounts")
+                          : item.title === "Open Account"
+                          ? t("nav.openAccount")
+                          : item.title === "CashCached"
+                          ? t("nav.stablecoin")
                           : item.title}
                       </span>
                     </SidebarMenuButton>
@@ -277,35 +352,6 @@ function AppSidebar() {
             </SidebarGroupContent>
           </SidebarGroup>
         ))}
-        {isStaff && (
-          <SidebarGroup>
-            <SidebarGroupLabel>{t("nav.admin")}</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                <SidebarMenuItem>
-                  <SidebarMenuButton
-                    onClick={() => navigate("/admin")}
-                    isActive={location.pathname === "/admin"}
-                    className="w-full justify-start"
-                  >
-                    <LayoutDashboard className="h-4 w-4" />
-                    <span>{t("nav.admin.dashboard")}</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-                <SidebarMenuItem>
-                  <SidebarMenuButton
-                    onClick={() => navigate("/financials/stablecoin")}
-                    isActive={location.pathname === "/financials/stablecoin"}
-                    className="w-full justify-start"
-                  >
-                    <Coins className="h-4 w-4" />
-                    <span>CashCached</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        )}
       </SidebarContent>
 
       <SidebarFooter className="border-t border-sidebar-border p-4">
@@ -360,12 +406,12 @@ function AppSidebar() {
                 <DropdownMenuLabel>My Account</DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => navigate("/profile")}>
-                  <User className="mr-2 h-4 w-4" />
+                  <User className="h-4 w-4" />
                   {t("nav.profile")}
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={logout}>
-                  <LogOut className="mr-2 h-4 w-4" />
+                  <LogOut className="h-4 w-4" />
                   {t("action.logout")}
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -389,7 +435,7 @@ export function AppLayout({ children }: AppLayoutProps) {
       <div className="flex h-screen w-full">
         <AppSidebar />
         <div className="flex flex-1 flex-col overflow-hidden">
-          <header className="flex h-16 items-center gap-4 border-b bg-white shadow-sm px-4 lg:hidden">
+          <header className="flex h-16 items-center gap-4 border-b bg-background shadow-sm px-4 lg:hidden">
             <Button
               variant="ghost"
               size="sm"
