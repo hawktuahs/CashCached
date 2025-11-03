@@ -1,0 +1,7 @@
+- do NOT create markdown files in this repository, unless explictly mentioned.
+- write only self-documenting code. Do not add comments or docstrings. Strictly avoid them.
+- keep trying to fix problems at the end until everything is resolved.
+- if you see yourself falling in a loop, promptly stop and ask for further instructions.
+- if you are adding some new functionality, make sure you implement a corresponding test case. run it at the end to verify everything works.
+- do not attempt to shut down running servers or restart services unless explicitly instructed. if needed, only inform the user.
+- do not attempt to perform git commands unless explicitly mentioned.
