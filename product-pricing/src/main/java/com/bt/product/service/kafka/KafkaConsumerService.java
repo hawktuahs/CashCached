@@ -43,6 +43,7 @@ public class KafkaConsumerService {
                     .productId(product.getId())
                     .productCode(product.getProductCode())
                     .productName(product.getProductName())
+                    .productType(product.getProductType())
                     .status(product.getStatus().toString())
                     .minAmount(product.getMinAmount())
                     .maxAmount(product.getMaxAmount())

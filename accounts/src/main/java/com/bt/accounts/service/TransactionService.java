@@ -49,16 +49,26 @@ public class TransactionService {
             throw new InvalidAccountDataException("Cannot record transaction on closed account: " + accountNo);
         }
 
-        String transactionId = generateTransactionId(accountNo);
-
         AccountTransaction.TransactionType type = AccountTransaction.TransactionType
                 .valueOf(request.getTransactionType());
+
+        if ("FIXED_DEPOSIT".equalsIgnoreCase(account.getProductType())
+                && (AccountTransaction.TransactionType.DEPOSIT == type
+                        || AccountTransaction.TransactionType.WITHDRAWAL == type)) {
+            throw new InvalidAccountDataException(
+                    "CashCached deposits or withdrawals are disabled for fixed deposit accounts. Please use redemption.");
+        }
+
+        String transactionId = generateTransactionId(accountNo);
         BigDecimal amountTokens = requireTokenAmount(request.getAmount());
         BigDecimal currentBalance = calculateCurrentBalance(accountNo);
         PricingRuleEvaluator.EvaluationResult pricing = applyPricingRules(account, currentBalance, null);
         BigDecimal newBalance = calculateNewBalance(currentBalance, type, amountTokens);
 
-        reconcileWalletForTransaction(account, type, amountTokens, request.getReferenceNo());
+        if (!("FIXED_DEPOSIT".equalsIgnoreCase(account.getProductType())
+                && AccountTransaction.TransactionType.INTEREST_CREDIT == type)) {
+            reconcileWalletForTransaction(account, type, amountTokens, request.getReferenceNo());
+        }
         applyPenaltyIfNeeded(account, pricing.getPenalty(), request.getReferenceNo());
 
         AccountTransaction transaction = AccountTransaction.builder()
@@ -91,6 +101,11 @@ public class TransactionService {
 
         if (account.getStatus() == FdAccount.AccountStatus.CLOSED) {
             throw new InvalidAccountDataException("Cannot record transaction on closed account: " + accountNo);
+        }
+
+        if ("FIXED_DEPOSIT".equalsIgnoreCase(account.getProductType())) {
+            throw new InvalidAccountDataException(
+                    "CashCached deposits or withdrawals are disabled for fixed deposit accounts. Please use redemption.");
         }
 
         String subject = getCurrentUsername();
@@ -158,7 +173,6 @@ public class TransactionService {
                 .build();
 
         AccountTransaction saved = transactionRepository.save(transaction);
-        reconcileWalletForTransaction(account, type, amountTokens, request.getReferenceNo());
         applyPenaltyIfNeeded(account, pricing.getPenalty(), request.getReferenceNo());
         return TransactionResponse.fromEntity(saved);
     }

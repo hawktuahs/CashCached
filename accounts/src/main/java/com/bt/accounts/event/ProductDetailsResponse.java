@@ -19,6 +19,7 @@ public class ProductDetailsResponse implements Serializable {
     private Long productId;
     private String productCode;
     private String productName;
+    private String productType;
     private String status;
     private BigDecimal minAmount;
     private BigDecimal maxAmount;

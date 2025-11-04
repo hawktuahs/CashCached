@@ -34,6 +34,9 @@ public class FdAccount {
     @Column(name = "product_ref_id")
     private Long productRefId;
 
+    @Column(name = "product_type", length = 50)
+    private String productType;
+
     @Column(name = "principal_amount", nullable = false, precision = 38, scale = 18)
     private BigDecimal principalAmount;
 

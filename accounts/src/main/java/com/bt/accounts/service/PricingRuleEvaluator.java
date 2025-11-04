@@ -5,7 +5,6 @@ import com.bt.accounts.entity.FdAccount;
 import com.bt.accounts.exception.ServiceIntegrationException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.util.Collections;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -17,6 +16,8 @@ import org.springframework.stereotype.Service;
 public class PricingRuleEvaluator {
 
     private static final BigDecimal ONE_HUNDRED = new BigDecimal("100");
+
+    private final PricingRuleClient pricingRuleClient;
 
     public EvaluationResult evaluate(FdAccount account, BigDecimal balance, String authToken) {
         try {
@@ -42,7 +43,7 @@ public class PricingRuleEvaluator {
     }
 
     private List<PricingRuleDto> fetchRules(FdAccount account, String token) {
-        return Collections.emptyList();
+        return pricingRuleClient.fetchActiveRules(account, token);
     }
 
     private boolean matches(PricingRuleDto rule, BigDecimal balance) {
