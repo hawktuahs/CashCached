@@ -34,6 +34,7 @@ public class AccountService {
     private final FdAccountRepository accountRepository;
     private final AccountTransactionRepository transactionRepository;
     private final CashCachedService cashCachedService;
+    private final PricingRuleEvaluator pricingRuleEvaluator;
     private final AccountNumberGenerator accountNumberGenerator;
     private final KafkaProducerService kafkaProducerService;
     private final RedisRequestResponseStore requestResponseStore;
@@ -69,6 +70,7 @@ public class AccountService {
                 .customerId(request.getCustomerId())
                 .productCode(request.getProductCode())
                 .productRefId(product.getId())
+                .productType(product.getProductType())
                 .principalAmount(principalTokens)
                 .interestRate(request.getInterestRate())
                 .baseInterestRate(request.getInterestRate())
@@ -80,18 +82,16 @@ public class AccountService {
                 .createdBy(getCurrentUsername())
                 .build();
 
-        FdAccount savedAccount = accountRepository.save(account);
-        CashCachedIssueRequest issueRequest = new CashCachedIssueRequest();
-        issueRequest.setCustomerId(request.getCustomerId());
-        issueRequest.setAmount(principalTokens);
-        issueRequest.setReference("Account creation " + accountNo);
-        cashCachedService.issue(issueRequest);
+        FdAccount pricedAccount = applyInitialPricing(account, principalTokens, authToken);
+        FdAccount savedAccount = accountRepository.save(pricedAccount);
 
         recordInitialDepositTransaction(savedAccount, principalTokens);
 
         log.info("Created FD account: {} for customer: {}", accountNo, request.getCustomerId());
 
-        return AccountResponse.fromEntity(savedAccount);
+        AccountResponse response = AccountResponse.fromEntity(savedAccount);
+        response.setCurrentBalance(savedAccount.getPrincipalAmount());
+        return response;
     }
 
     @Transactional(readOnly = true)
@@ -148,6 +148,7 @@ public class AccountService {
         FdCalculationDto calc = calculateMaturity(temp, authToken);
 
         account.setProductCode(newProductCode);
+        account.setProductType(product.getProductType());
         account.setInterestRate(newInterestRate);
         account.setBaseInterestRate(newInterestRate);
         account.setTenureMonths(newTenureMonths);
@@ -283,6 +284,34 @@ public class AccountService {
         }
     }
 
+    private FdAccount applyInitialPricing(FdAccount account, BigDecimal principalTokens, String authToken) {
+        if (account == null) {
+            return null;
+        }
+
+        BigDecimal balance = principalTokens != null ? principalTokens : account.getPrincipalAmount();
+        if (balance == null) {
+            balance = BigDecimal.ZERO;
+        }
+
+        try {
+            PricingRuleEvaluator.EvaluationResult evaluation = pricingRuleEvaluator.evaluate(account, balance,
+                    authToken);
+            if (evaluation.hasRule()) {
+                account.setActivePricingRuleId(evaluation.getRule().getId());
+                account.setActivePricingRuleName(evaluation.getRule().getRuleName());
+                account.setPricingRuleAppliedAt(LocalDateTime.now());
+            }
+            if (evaluation.getAppliedRate() != null) {
+                account.setInterestRate(evaluation.getAppliedRate());
+            }
+            return account;
+        } catch (ServiceIntegrationException ex) {
+            log.warn("Initial pricing evaluation failed for account {}: {}", account.getAccountNo(), ex.getMessage());
+            return account;
+        }
+    }
+
     private CustomerDto validateCustomer(String customerId, String authToken) {
         String requestId = UUID.randomUUID().toString();
         log.info("========== VALIDATING CUSTOMER {} ==========", customerId);
@@ -339,20 +368,28 @@ public class AccountService {
             ProductDetailsResponse response = requestResponseStore
                     .getResponse(requestId, ProductDetailsResponse.class, requestTimeoutSeconds, TimeUnit.SECONDS);
 
-            if (response == null || response.getProductId() == null) {
-                throw new ProductNotFoundException("Product not found: " + productCode);
+            if (response == null) {
+                throw new ServiceIntegrationException("Product details not found for code: " + productCode);
+            }
+            if (response.getError() != null && !response.getError().isBlank()) {
+                throw new ServiceIntegrationException(
+                        "Product service returned error for code " + productCode + ": " + response.getError());
             }
 
-            ProductDto dto = new ProductDto();
-            dto.setId(response.getProductId());
-            dto.setProductCode(response.getProductCode());
-            dto.setProductName(response.getProductName());
-            dto.setMinAmount(response.getMinAmount());
-            dto.setMaxAmount(response.getMaxAmount());
-            dto.setMinTermMonths(response.getMinTermMonths());
-            dto.setMaxTermMonths(response.getMaxTermMonths());
-            dto.setMinInterestRate(response.getMinInterestRate());
-            dto.setMaxInterestRate(response.getMaxInterestRate());
+            ProductDto dto = ProductDto.builder()
+                    .id(response.getProductId())
+                    .productCode(response.getProductCode())
+                    .productName(response.getProductName())
+                    .productType(response.getProductType())
+                    .minAmount(response.getMinAmount())
+                    .maxAmount(response.getMaxAmount())
+                    .minTermMonths(response.getMinTermMonths())
+                    .maxTermMonths(response.getMaxTermMonths())
+                    .minInterestRate(response.getMinInterestRate())
+                    .maxInterestRate(response.getMaxInterestRate())
+                    .currency(response.getCurrency())
+                    .status(response.getStatus())
+                    .build();
             return dto;
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -494,6 +531,7 @@ public class AccountService {
                 .customerId(request.getCustomerId())
                 .productCode(request.getProductCode())
                 .productRefId(product.getId())
+                .productType(product.getProductType())
                 .principalAmount(principalTokens)
                 .interestRate(product.getMinInterestRate())
                 .baseInterestRate(product.getMinInterestRate())
@@ -506,11 +544,6 @@ public class AccountService {
                 .build();
 
         FdAccount savedAccount = accountRepository.save(account);
-        CashCachedIssueRequest issueRequest = new CashCachedIssueRequest();
-        issueRequest.setCustomerId(request.getCustomerId());
-        issueRequest.setAmount(principalTokens);
-        issueRequest.setReference("Account creation " + accountNo);
-        cashCachedService.issue(issueRequest);
         log.info("Created V1 FD account (product defaults): {} for customer: {}", accountNo, request.getCustomerId());
 
         return AccountResponse.fromEntity(savedAccount);
@@ -571,6 +604,7 @@ public class AccountService {
                 .customerId(request.getCustomerId())
                 .productCode(request.getProductCode())
                 .productRefId(product.getId())
+                .productType(product.getProductType())
                 .principalAmount(principalTokens)
                 .interestRate(finalInterestRate)
                 .baseInterestRate(finalInterestRate)
@@ -583,11 +617,6 @@ public class AccountService {
                 .build();
 
         FdAccount savedAccount = accountRepository.save(account);
-        CashCachedIssueRequest issueRequest = new CashCachedIssueRequest();
-        issueRequest.setCustomerId(request.getCustomerId());
-        issueRequest.setAmount(principalTokens);
-        issueRequest.setReference("Account creation " + accountNo);
-        cashCachedService.issue(issueRequest);
 
         recordInitialDepositTransaction(savedAccount, principalTokens);
 

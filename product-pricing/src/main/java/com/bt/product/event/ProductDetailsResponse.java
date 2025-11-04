@@ -4,6 +4,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import com.bt.product.entity.ProductType;
 import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -19,6 +20,7 @@ public class ProductDetailsResponse implements Serializable {
     private Long productId;
     private String productCode;
     private String productName;
+    private ProductType productType;
     private String status;
     private BigDecimal minAmount;
     private BigDecimal maxAmount;
