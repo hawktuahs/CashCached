@@ -31,6 +31,7 @@ function App() {
         attribute="class"
         defaultTheme="light"
         enableSystem={false}
+        forcedTheme="light"
       >
         <I18nProvider>
           <AuthProvider>
