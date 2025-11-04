@@ -401,6 +401,7 @@ const dict: Dict = {
   "common.months": { en: "months", ja: "ヶ月" },
   "common.to": { en: "to", ja: "〜" },
   "calculator.interestRate": { en: "Interest Rate", ja: "金利" },
+  "calculator.nominal": { en: "Nominal", ja: "名目" },
   "auth.login.title": { en: "Sign in", ja: "ログイン" },
   "auth.login.username": { en: "Username", ja: "ユーザー名" },
   "auth.login.password": { en: "Password", ja: "パスワード" },

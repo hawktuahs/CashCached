@@ -12,10 +12,11 @@ api.interceptors.response.use(
     return response;
   },
   (error) => {
-    if (error.response?.status === 401) {
+    if (error.response?.status === 401 || error.response?.status === 403) {
       const currentPath = window.location.pathname;
       if (currentPath !== '/login' && !error.config?.url?.includes('/verify-otp')) {
         localStorage.removeItem('token');
+        delete api.defaults.headers.common['Authorization'];
         window.location.href = '/login';
       }
     }

@@ -264,9 +264,12 @@ export function Login() {
                         name="email"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>{t("auth.login.email")}</FormLabel>
+                            <FormLabel htmlFor="login-email">
+                              {t("auth.field.email")}
+                            </FormLabel>
                             <FormControl>
                               <Input
+                                id="login-email"
                                 type="email"
                                 placeholder={t("auth.placeholder.email")}
                                 {...field}
@@ -282,10 +285,13 @@ export function Login() {
                         name="password"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>{t("auth.login.password")}</FormLabel>
+                            <FormLabel htmlFor="login-password">
+                              {t("auth.login.password")}
+                            </FormLabel>
                             <FormControl>
                               <div className="relative">
                                 <Input
+                                  id="login-password"
                                   type={showPassword ? "text" : "password"}
                                   placeholder={t("auth.placeholder.password")}
                                   {...field}
@@ -367,11 +373,12 @@ export function Login() {
                           name="email"
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel>
-                                {t("auth.magicLink.emailLabel")}
+                              <FormLabel htmlFor="magiclink-email">
+                                {t("auth.field.email")}
                               </FormLabel>
                               <FormControl>
                                 <Input
+                                  id="magiclink-email"
                                   type="email"
                                   placeholder={t("auth.placeholder.email")}
                                   {...field}

@@ -34,6 +34,7 @@ interface AuthContextType {
   verifyMagicLink: (token: string) => Promise<void>;
   refreshProfile: () => Promise<void>;
   preferredCurrency: string;
+  invalidateSession: () => void;
 }
 
 interface RegisterData {
@@ -92,6 +93,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const initializeAuth = async () => {
       const storedToken = localStorage.getItem("token");
+      const storedRole = localStorage.getItem("userRole");
       if (storedToken) {
         try {
           setToken(storedToken);
@@ -103,12 +105,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             email: "",
             firstName: "",
             lastName: "",
-            role: "CUSTOMER",
+            role:
+              (storedRole as "CUSTOMER" | "BANKOFFICER" | "ADMIN") ||
+              "CUSTOMER",
             preferredCurrency: "KWD",
           });
           await hydrateProfile();
         } catch {
           localStorage.removeItem("token");
+          localStorage.removeItem("userRole");
           setToken(null);
         }
       }
@@ -123,16 +128,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (response?.data?.twoFactorRequired) {
       throw new Error(`OTP_REQUIRED:${email}`);
     }
-    const { token: sessionId } = response.data;
+    const { token: sessionId, role } = response.data;
     localStorage.setItem("token", sessionId);
+    localStorage.setItem("userRole", role || "CUSTOMER");
     setToken(sessionId);
     api.defaults.headers.common["Authorization"] = `Bearer ${sessionId}`;
     setUser({
       id: "",
-      email: "",
+      email: email,
       firstName: "",
       lastName: "",
-      role: "CUSTOMER",
+      role: (role as "CUSTOMER" | "BANKOFFICER" | "ADMIN") || "CUSTOMER",
       preferredCurrency: "KWD",
     });
     await hydrateProfile();
@@ -140,16 +146,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const verifyOtp = async (email: string, code: string) => {
     const response = await api.post("/api/auth/verify-otp", { email, code });
-    const { token: sessionId } = response.data;
+    const { token: sessionId, role } = response.data;
     localStorage.setItem("token", sessionId);
+    localStorage.setItem("userRole", role || "CUSTOMER");
     setToken(sessionId);
     api.defaults.headers.common["Authorization"] = `Bearer ${sessionId}`;
     setUser({
       id: "",
-      email: "",
+      email: email,
       firstName: "",
       lastName: "",
-      role: "CUSTOMER",
+      role: (role as "CUSTOMER" | "BANKOFFICER" | "ADMIN") || "CUSTOMER",
     });
     await hydrateProfile();
   };
@@ -164,16 +171,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       {},
       { params: { token } }
     );
-    const { token: sessionId } = response.data;
+    const { token: sessionId, email, role } = response.data;
     localStorage.setItem("token", sessionId);
+    localStorage.setItem("userRole", role || "CUSTOMER");
     setToken(sessionId);
     api.defaults.headers.common["Authorization"] = `Bearer ${sessionId}`;
     setUser({
       id: "",
-      email: "",
+      email: email || "",
       firstName: "",
       lastName: "",
-      role: "CUSTOMER",
+      role: (role as "CUSTOMER" | "BANKOFFICER" | "ADMIN") || "CUSTOMER",
       preferredCurrency: "KWD",
     });
     await hydrateProfile();
@@ -194,9 +202,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         role: userData.role,
       };
       const response = await api.post("/api/auth/register", payload);
-      const { token: sessionId } = response.data;
+      const { token: sessionId, role: responseRole } = response.data;
 
       localStorage.setItem("token", sessionId);
+      localStorage.setItem("userRole", responseRole || "CUSTOMER");
       setToken(sessionId);
       api.defaults.headers.common["Authorization"] = `Bearer ${sessionId}`;
 
@@ -205,7 +214,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         email: userData.email,
         firstName: userData.firstName,
         lastName: userData.lastName,
-        role: userData.role,
+        role:
+          (responseRole as "CUSTOMER" | "BANKOFFICER" | "ADMIN") ||
+          userData.role,
         preferredCurrency: userData.preferredCurrency || "KWD",
         address: userData.address,
         aadhaarNumber: userData.aadhaarNumber,
@@ -219,9 +230,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = () => {
     localStorage.removeItem("token");
+    localStorage.removeItem("userRole");
     setToken(null);
     setUser(null);
     delete api.defaults.headers.common["Authorization"];
+  };
+
+  const invalidateSession = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("userRole");
+    setToken(null);
+    setUser(null);
+    delete api.defaults.headers.common["Authorization"];
+    window.location.href = "/login";
   };
 
   return (
@@ -232,6 +253,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         login,
         register,
         logout,
+        invalidateSession,
         isLoading,
         isAuthenticated,
         verifyOtp,

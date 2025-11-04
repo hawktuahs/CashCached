@@ -17,8 +17,8 @@ public class AuthResponse {
     @Schema(description = "Token type (always Bearer)", example = "Bearer")
     private String tokenType;
 
-    @Schema(description = "Authenticated username", example = "john_doe")
-    private String username;
+    @Schema(description = "Authenticated user email", example = "john@example.com")
+    private String email;
 
     @Schema(description = "User role", example = "CUSTOMER")
     private String role;
@@ -28,10 +28,10 @@ public class AuthResponse {
 
     private Boolean twoFactorRequired;
 
-    public AuthResponse(String token, String username, String role, String message) {
+    public AuthResponse(String token, String email, String role, String message) {
         this.token = token;
         this.tokenType = "Bearer";
-        this.username = username;
+        this.email = email;
         this.role = role;
         this.message = message;
         this.twoFactorRequired = false;

@@ -80,12 +80,12 @@ public class CustomerController {
     })
     public ResponseEntity<StatusResponse> getStatus() {
         String role = customerService.getCurrentUserRole();
-        String username = customerService.getCurrentUser().getUsername();
+        String email = customerService.getCurrentUser().getEmail();
 
         StatusResponse status = StatusResponse.builder()
                 .status("OPERATIONAL")
                 .role(role)
-                .username(username)
+                .email(email)
                 .timestamp(LocalDateTime.now())
                 .message("Customer service is running")
                 .build();
@@ -116,9 +116,10 @@ public class CustomerController {
 
     @GetMapping("/security/login-activity")
     @Operation(summary = "Recent login activity", description = "Returns recent login events for the current user")
-    public ResponseEntity<List<Map<String, Object>>> getRecentLoginActivity(@RequestParam(name = "limit", defaultValue = "10") int limit) {
-        String username = customerService.getCurrentUser().getUsername();
-        List<Map<String, Object>> events = authService.recentLoginActivity(username, Math.max(1, Math.min(50, limit)));
+    public ResponseEntity<List<Map<String, Object>>> getRecentLoginActivity(
+            @RequestParam(name = "limit", defaultValue = "10") int limit) {
+        String email = customerService.getCurrentUser().getEmail();
+        List<Map<String, Object>> events = authService.recentLoginActivity(email, Math.max(1, Math.min(50, limit)));
         return ResponseEntity.ok(events);
     }
 

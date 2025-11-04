@@ -82,10 +82,6 @@ public class AuthService {
 
     @Transactional
     public AuthResponse register(RegisterRequest request) {
-        if (userRepository.existsByUsername(request.getUsername())) {
-            throw new UserAlreadyExistsException("Username already exists: " + request.getUsername());
-        }
-
         if (userRepository.existsByEmail(request.getEmail())) {
             throw new UserAlreadyExistsException("Email already registered: " + request.getEmail());
         }
@@ -93,7 +89,6 @@ public class AuthService {
         User.CustomerClassification classification = computeClassification(request.getDateOfBirth());
 
         User user = User.builder()
-                .username(request.getUsername())
                 .password(passwordEncoder.encode(request.getPassword()))
                 .fullName(request.getFullName())
                 .email(request.getEmail())
@@ -110,33 +105,37 @@ public class AuthService {
 
         userRepository.save(user);
 
-        String token = tokenProvider.generateTokenForUser(user.getUsername(), user.getRole().name());
+        String token = tokenProvider.generateTokenForUser(user.getEmail(), user.getRole().name());
 
         return new AuthResponse(
                 token,
-                user.getUsername(),
+                user.getEmail(),
                 user.getRole().name(),
                 "User registered successfully");
     }
 
     public AuthResponse login(LoginRequest request) {
+        User user = userRepository.findByEmail(request.getEmail())
+                .orElseThrow(() -> new InvalidCredentialsException("Invalid email"));
+
+        if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
+            throw new InvalidCredentialsException("Invalid password");
+        }
+
         try {
             Authentication authentication = authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(
-                            request.getUsername(),
+                            user.getEmail(),
                             request.getPassword()));
 
             SecurityContextHolder.getContext().setAuthentication(authentication);
 
-            User user = userRepository.findByUsername(request.getUsername())
-                    .orElseThrow(() -> new InvalidCredentialsException("Invalid credentials"));
-
             boolean twoFA = customerService.isTwoFactorEnabledForCurrentUser()
-                    || customerServiceIsTwoFactorEnabled(user.getUsername());
+                    || customerServiceIsTwoFactorEnabled(user.getEmail());
             if (twoFA) {
                 String code = generateOtp();
-                redisOtpService.storeOtp(user.getUsername(), code);
-                log.info("Generated OTP for user {}: {} (valid 5m)", user.getUsername(), code);
+                redisOtpService.storeOtp(user.getEmail(), code);
+                log.info("Generated OTP for user {}: {} (valid 5m)", user.getEmail(), code);
                 if (user.getEmail() != null && !user.getEmail().isBlank()) {
                     try {
                         sendOtpEmail(user.getEmail(), code);
@@ -144,35 +143,37 @@ public class AuthService {
                         log.warn("Failed to send OTP email to {}", user.getEmail());
                     }
                 }
-                AuthResponse resp = new AuthResponse(null, user.getUsername(), user.getRole().name(), "OTP required");
+                AuthResponse resp = new AuthResponse(null, user.getEmail(), user.getRole().name(), "OTP required");
                 resp.setTwoFactorRequired(true);
                 return resp;
             }
 
             String sessionId = redisSessionService.createSession(user);
-            recordLogin(user.getUsername(), "PASSWORD");
-            return new AuthResponse(sessionId, user.getUsername(), user.getRole().name(), "Authentication successful");
+            recordLogin(user.getEmail(), "PASSWORD");
+            return new AuthResponse(sessionId, user.getEmail(), user.getRole().name(), "Authentication successful");
+        } catch (InvalidCredentialsException e) {
+            throw e;
         } catch (Exception e) {
-            throw new InvalidCredentialsException("Invalid username or password");
+            throw new InvalidCredentialsException("Invalid password");
         }
     }
 
-    public AuthResponse verifyOtp(String username, String code) {
-        User user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new InvalidCredentialsException("Invalid credentials"));
+    public AuthResponse verifyOtp(String email, String code) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new InvalidCredentialsException("Invalid email"));
 
-        if (!redisOtpService.validateOtp(username, code)) {
+        if (!redisOtpService.validateOtp(email, code)) {
             throw new InvalidCredentialsException("Invalid or expired OTP");
         }
 
         String sessionId = redisSessionService.createSession(user);
-        recordLogin(user.getUsername(), "OTP");
-        return new AuthResponse(sessionId, user.getUsername(), user.getRole().name(), "Authentication successful");
+        recordLogin(user.getEmail(), "OTP");
+        return new AuthResponse(sessionId, user.getEmail(), user.getRole().name(), "Authentication successful");
     }
 
-    private boolean customerServiceIsTwoFactorEnabled(String username) {
+    private boolean customerServiceIsTwoFactorEnabled(String email) {
         try {
-            return customerService != null && customerService.isTwoFactorEnabled(username);
+            return customerService != null && customerService.isTwoFactorEnabled(email);
         } catch (Exception e) {
             return false;
         }

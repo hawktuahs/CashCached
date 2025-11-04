@@ -70,7 +70,8 @@ public class AuthController {
     @PostMapping("/logout")
     @Operation(summary = "Logout user", description = "Invalidates current session")
     @ApiResponse(responseCode = "200", description = "Logout successful")
-    public ResponseEntity<Map<String, String>> logout(@RequestHeader(value = "Authorization", required = false) String authHeader) {
+    public ResponseEntity<Map<String, String>> logout(
+            @RequestHeader(value = "Authorization", required = false) String authHeader) {
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
             String sessionId = authHeader.substring(7);
             redisSessionService.invalidateSession(sessionId);
@@ -97,7 +98,7 @@ public class AuthController {
             @ApiResponse(responseCode = "401", description = "Invalid or expired magic link")
     })
     public ResponseEntity<AuthResponse> verifyMagicLink(@RequestParam String token) {
-        String sessionId = magicLinkService.authenticateWithMagicLink(token);
-        return ResponseEntity.ok(new AuthResponse(sessionId, null, "CUSTOMER", "Authentication successful"));
+        AuthResponse response = magicLinkService.verifyAndAuthenticateWithMagicLink(token);
+        return ResponseEntity.ok(response);
     }
 }

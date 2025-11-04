@@ -19,8 +19,8 @@ public class StatusResponse {
     @Schema(description = "Authenticated user role", example = "CUSTOMER")
     private String role;
 
-    @Schema(description = "Authenticated username", example = "john_doe")
-    private String username;
+    @Schema(description = "Authenticated user email", example = "john@example.com")
+    private String email;
 
     @Schema(description = "Response timestamp")
     private LocalDateTime timestamp;

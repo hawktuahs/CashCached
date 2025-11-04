@@ -1,5 +1,6 @@
 package com.bt.customer.service;
 
+import com.bt.customer.dto.AuthResponse;
 import com.bt.customer.entity.User;
 import com.bt.customer.exception.InvalidCredentialsException;
 import com.bt.customer.repository.UserRepository;
@@ -57,11 +58,15 @@ public class MagicLinkService {
         String magicLinkKey = MAGIC_LINK_PREFIX + token;
         String email = redisTemplate.opsForValue().get(magicLinkKey);
 
+        log.info("Attempting to verify magic link token: {}, key: {}, found email: {}", token, magicLinkKey, email);
+
         if (email == null) {
+            log.warn("Magic link token not found or expired: {}", token);
             throw new InvalidCredentialsException("Invalid or expired magic link");
         }
 
         redisTemplate.delete(magicLinkKey);
+        log.info("Magic link token verified and deleted for email: {}", email);
         return email;
     }
 
@@ -77,6 +82,20 @@ public class MagicLinkService {
 
         String sessionId = redisSessionService.createSession(user);
         return sessionId;
+    }
+
+    public AuthResponse verifyAndAuthenticateWithMagicLink(String token) {
+        String email = verifyMagicLink(token);
+
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new InvalidCredentialsException("User not found"));
+
+        if (!user.getActive()) {
+            throw new InvalidCredentialsException("User account is inactive");
+        }
+
+        String sessionId = redisSessionService.createSession(user);
+        return new AuthResponse(sessionId, email, user.getRole().name(), "Authentication successful");
     }
 
     private void sendMagicLinkEmail(String to, String magicLink, String fullName) {

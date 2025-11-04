@@ -144,9 +144,12 @@ export function Register() {
                     name="firstName"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>{t("auth.field.firstName")}</FormLabel>
+                        <FormLabel htmlFor="register-firstName">
+                          {t("auth.field.firstName")}
+                        </FormLabel>
                         <FormControl>
                           <Input
+                            id="register-firstName"
                             placeholder={t("auth.placeholder.firstName")}
                             {...field}
                             disabled={isLoading}
@@ -161,9 +164,12 @@ export function Register() {
                     name="lastName"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>{t("auth.field.lastName")}</FormLabel>
+                        <FormLabel htmlFor="register-lastName">
+                          {t("auth.field.lastName")}
+                        </FormLabel>
                         <FormControl>
                           <Input
+                            id="register-lastName"
                             placeholder={t("auth.placeholder.lastName")}
                             {...field}
                             disabled={isLoading}
@@ -179,9 +185,12 @@ export function Register() {
                   name="email"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>{t("auth.field.email")}</FormLabel>
+                      <FormLabel htmlFor="register-email">
+                        {t("auth.field.email")}
+                      </FormLabel>
                       <FormControl>
                         <Input
+                          id="register-email"
                           type="email"
                           placeholder={t("auth.placeholder.email")}
                           {...field}
@@ -197,9 +206,13 @@ export function Register() {
                   name="phoneNumber"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>{t("auth.field.phone")}</FormLabel>
+                      <FormLabel htmlFor="register-phone">
+                        {t("auth.field.phone")}
+                      </FormLabel>
                       <FormControl>
                         <Input
+                          id="register-phone"
+                          type="tel"
                           placeholder={t("auth.placeholder.phone")}
                           {...field}
                           disabled={isLoading}
@@ -214,9 +227,16 @@ export function Register() {
                   name="dateOfBirth"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>{t("auth.field.dateOfBirth")}</FormLabel>
+                      <FormLabel htmlFor="register-dateOfBirth">
+                        {t("auth.field.dateOfBirth")}
+                      </FormLabel>
                       <FormControl>
-                        <Input type="date" {...field} disabled={isLoading} />
+                        <Input
+                          id="register-dateOfBirth"
+                          type="date"
+                          {...field}
+                          disabled={isLoading}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -227,9 +247,12 @@ export function Register() {
                   name="address"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>{t("auth.field.address")}</FormLabel>
+                      <FormLabel htmlFor="register-address">
+                        {t("auth.field.address")}
+                      </FormLabel>
                       <FormControl>
                         <Input
+                          id="register-address"
                           placeholder={t("auth.placeholder.address")}
                           {...field}
                           disabled={isLoading}
@@ -245,9 +268,12 @@ export function Register() {
                     name="aadhaarNumber"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>{t("auth.field.aadhaarNumber")}</FormLabel>
+                        <FormLabel htmlFor="register-aadhaar">
+                          {t("auth.field.aadhaarNumber")}
+                        </FormLabel>
                         <FormControl>
                           <Input
+                            id="register-aadhaar"
                             placeholder={t("auth.placeholder.aadhaarNumber")}
                             {...field}
                             disabled={isLoading}
@@ -263,9 +289,12 @@ export function Register() {
                     name="panNumber"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>{t("auth.field.panNumber")}</FormLabel>
+                        <FormLabel htmlFor="register-pan">
+                          {t("auth.field.panNumber")}
+                        </FormLabel>
                         <FormControl>
                           <Input
+                            id="register-pan"
                             placeholder={t("auth.placeholder.panNumber")}
                             {...field}
                             disabled={isLoading}
@@ -354,10 +383,13 @@ export function Register() {
                   name="password"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>{t("auth.field.password")}</FormLabel>
+                      <FormLabel htmlFor="register-password">
+                        {t("auth.field.password")}
+                      </FormLabel>
                       <FormControl>
                         <div className="relative">
                           <Input
+                            id="register-password"
                             type={showPassword ? "text" : "password"}
                             placeholder={t("auth.placeholder.password")}
                             {...field}
@@ -393,10 +425,13 @@ export function Register() {
                   name="confirmPassword"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>{t("auth.field.confirmPassword")}</FormLabel>
+                      <FormLabel htmlFor="register-confirmPassword">
+                        {t("auth.field.confirmPassword")}
+                      </FormLabel>
                       <FormControl>
                         <div className="relative">
                           <Input
+                            id="register-confirmPassword"
                             type={showConfirmPassword ? "text" : "password"}
                             placeholder={t("auth.placeholder.confirmPassword")}
                             {...field}

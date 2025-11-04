@@ -38,24 +38,23 @@ public class RedisSessionService {
     public String createSession(User user) {
         String sessionId = UUID.randomUUID().toString();
 
-        String existingSession = getActiveSessionForUser(user.getUsername());
+        String existingSession = getActiveSessionForUser(user.getEmail());
         if (existingSession != null) {
             invalidateSession(existingSession);
         }
 
         Map<String, Object> sessionData = new HashMap<>();
         sessionData.put("sessionId", sessionId);
-        sessionData.put("username", user.getUsername());
+        sessionData.put("email", user.getEmail());
         sessionData.put("userId", user.getId());
         sessionData.put("role", user.getRole().name());
-        sessionData.put("email", user.getEmail());
         sessionData.put("createdAt", Instant.now().getEpochSecond());
         sessionData.put("lastActivity", Instant.now().getEpochSecond());
 
         try {
             String sessionJson = objectMapper.writeValueAsString(sessionData);
             String sessionKey = SESSION_PREFIX + sessionId;
-            String userSessionKey = USER_SESSIONS_PREFIX + user.getUsername();
+            String userSessionKey = USER_SESSIONS_PREFIX + user.getEmail();
 
             redisTemplate.opsForValue().set(sessionKey, sessionJson, sessionTimeoutSeconds, TimeUnit.SECONDS);
             redisTemplate.opsForValue().set(userSessionKey, sessionId, sessionTimeoutSeconds, TimeUnit.SECONDS);
@@ -96,8 +95,8 @@ public class RedisSessionService {
 
             if (sessionJson != null) {
                 Map<String, Object> sessionData = objectMapper.readValue(sessionJson, Map.class);
-                String username = (String) sessionData.get("username");
-                String userSessionKey = USER_SESSIONS_PREFIX + username;
+                String email = (String) sessionData.get("email");
+                String userSessionKey = USER_SESSIONS_PREFIX + email;
 
                 redisTemplate.delete(sessionKey);
                 redisTemplate.delete(userSessionKey);
@@ -108,9 +107,9 @@ public class RedisSessionService {
         }
     }
 
-    public String getActiveSessionForUser(String username) {
+    public String getActiveSessionForUser(String email) {
         try {
-            String userSessionKey = USER_SESSIONS_PREFIX + username;
+            String userSessionKey = USER_SESSIONS_PREFIX + email;
             return redisTemplate.opsForValue().get(userSessionKey);
         } catch (Exception e) {
             return null;
@@ -124,30 +123,34 @@ public class RedisSessionService {
 
             String sessionJson = redisTemplate.opsForValue().get(sessionKey);
             if (sessionJson == null) {
+                log.warn("Session not found in Redis: {}", sessionKey);
                 return false;
             }
 
             String idleData = redisTemplate.opsForValue().get(idleKey);
             if (idleData == null) {
+                log.warn("Idle timeout not found in Redis: {}", idleKey);
                 invalidateSession(sessionId);
                 return false;
             }
 
+            log.debug("Session is valid: {}", sessionId);
             return true;
         } catch (Exception e) {
+            log.error("Error validating session: {}", sessionId, e);
             return false;
         }
     }
 
-    public void invalidateAllUserSessions(String username) {
+    public void invalidateAllUserSessions(String email) {
         try {
-            String userSessionKey = USER_SESSIONS_PREFIX + username;
+            String userSessionKey = USER_SESSIONS_PREFIX + email;
             String sessionId = redisTemplate.opsForValue().get(userSessionKey);
             if (sessionId != null) {
                 invalidateSession(sessionId);
             }
         } catch (Exception e) {
-            log.error("Error invalidating user sessions: {}", username, e);
+            log.error("Error invalidating user sessions: {}", email, e);
         }
     }
 
@@ -156,10 +159,15 @@ public class RedisSessionService {
             String sessionKey = SESSION_PREFIX + sessionId;
             String sessionJson = redisTemplate.opsForValue().get(sessionKey);
             if (sessionJson != null) {
-                return objectMapper.readValue(sessionJson, Map.class);
+                @SuppressWarnings("unchecked")
+                Map<String, Object> data = objectMapper.readValue(sessionJson, Map.class);
+                log.debug("Retrieved session data for: {}", sessionId);
+                return data;
             }
+            log.warn("No session JSON found for: {}", sessionId);
             return null;
         } catch (Exception e) {
+            log.error("Error getting session data for: {}", sessionId, e);
             return null;
         }
     }

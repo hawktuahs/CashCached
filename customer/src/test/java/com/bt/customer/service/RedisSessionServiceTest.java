@@ -53,12 +53,11 @@ public class RedisSessionServiceTest {
     public void testCreateSession() {
         User user = User.builder()
                 .id(1L)
-                .username("testuser")
                 .email("test@example.com")
                 .role(User.Role.CUSTOMER)
                 .build();
 
-        when(valueOperations.get("user_sessions:testuser")).thenReturn(null);
+        when(valueOperations.get("user_sessions:test@example.com")).thenReturn(null);
 
         String sessionId = redisSessionService.createSession(user);
 
@@ -70,12 +69,11 @@ public class RedisSessionServiceTest {
     public void testEnforceOneLoginPerUser() {
         User user = User.builder()
                 .id(1L)
-                .username("testuser")
                 .email("test@example.com")
                 .role(User.Role.CUSTOMER)
                 .build();
 
-        when(valueOperations.get("user_sessions:testuser")).thenReturn("existing-session-id");
+        when(valueOperations.get("user_sessions:test@example.com")).thenReturn("existing-session-id");
 
         String newSessionId = redisSessionService.createSession(user);
 
@@ -92,8 +90,7 @@ public class RedisSessionServiceTest {
                 eq("session_idle:" + sessionId),
                 anyString(),
                 eq(900L),
-                eq(TimeUnit.SECONDS)
-        );
+                eq(TimeUnit.SECONDS));
     }
 
     @Test
@@ -117,4 +114,3 @@ public class RedisSessionServiceTest {
         assertFalse(redisSessionService.isSessionValid(sessionId));
     }
 }
-
