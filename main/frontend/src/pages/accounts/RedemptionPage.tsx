@@ -23,9 +23,6 @@ import {
 import {
   ArrowLeft,
   AlertTriangle,
-  CheckCircle2,
-  Calendar,
-  DollarSign,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { toast } from "sonner";

@@ -39,7 +39,6 @@ const registerSchema = z
   .object({
     firstName: z.string().min(2, "First name must be at least 2 characters"),
     lastName: z.string().min(2, "Last name must be at least 2 characters"),
-    username: z.string().min(3, "Username must be at least 3 characters"),
     email: z.string().email("Please enter a valid email address"),
     password: z.string().min(6, "Password must be at least 6 characters"),
     confirmPassword: z.string(),
@@ -52,13 +51,13 @@ const registerSchema = z
       const d = new Date(date);
       return d < new Date();
     }, "Date of birth must be in the past"),
-    aadhaarNumber: z
-      .string()
-      .regex(/^\d{12}$/, "Aadhaar must be 12 digits"),
+    aadhaarNumber: z.string().regex(/^\d{12}$/, "Aadhaar must be 12 digits"),
     panNumber: z
       .string()
       .regex(/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/, "Invalid PAN format"),
-    preferredCurrency: z.string().length(3, "Currency code must be 3 characters"),
+    preferredCurrency: z
+      .string()
+      .length(3, "Currency code must be 3 characters"),
     role: z.enum(["CUSTOMER", "BANKOFFICER", "ADMIN"]),
   })
   .refine((data) => data.password === data.confirmPassword, {
@@ -81,7 +80,6 @@ export function Register() {
     defaultValues: {
       firstName: "",
       lastName: "",
-      username: "",
       email: "",
       password: "",
       confirmPassword: "",
@@ -101,7 +99,6 @@ export function Register() {
       await register({
         firstName: data.firstName,
         lastName: data.lastName,
-        username: data.username,
         email: data.email,
         password: data.password,
         phoneNumber: data.phoneNumber,
@@ -112,10 +109,10 @@ export function Register() {
         preferredCurrency: data.preferredCurrency,
         role: data.role,
       });
-      toast.success("Registration successful!");
+      toast.success(t("auth.register.success"));
       navigate("/dashboard");
-    } catch (error) {
-      toast.error("Registration failed. Please try again.");
+    } catch {
+      toast.error(t("auth.register.failed"));
     } finally {
       setIsLoading(false);
     }
@@ -179,23 +176,6 @@ export function Register() {
                 </div>
                 <FormField
                   control={form.control}
-                  name="username"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t("auth.field.username")}</FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder={t("auth.placeholder.username")}
-                          {...field}
-                          disabled={isLoading}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
                   name="email"
                   render={({ field }) => (
                     <FormItem>
@@ -234,13 +214,9 @@ export function Register() {
                   name="dateOfBirth"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Date of Birth</FormLabel>
+                      <FormLabel>{t("auth.field.dateOfBirth")}</FormLabel>
                       <FormControl>
-                        <Input
-                          type="date"
-                          {...field}
-                          disabled={isLoading}
-                        />
+                        <Input type="date" {...field} disabled={isLoading} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -251,10 +227,10 @@ export function Register() {
                   name="address"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Address</FormLabel>
+                      <FormLabel>{t("auth.field.address")}</FormLabel>
                       <FormControl>
                         <Input
-                          placeholder="Enter your residential address"
+                          placeholder={t("auth.placeholder.address")}
                           {...field}
                           disabled={isLoading}
                         />
@@ -269,10 +245,10 @@ export function Register() {
                     name="aadhaarNumber"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Aadhaar Number</FormLabel>
+                        <FormLabel>{t("auth.field.aadhaarNumber")}</FormLabel>
                         <FormControl>
                           <Input
-                            placeholder="12-digit number"
+                            placeholder={t("auth.placeholder.aadhaarNumber")}
                             {...field}
                             disabled={isLoading}
                             maxLength={12}
@@ -287,10 +263,10 @@ export function Register() {
                     name="panNumber"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>PAN Number</FormLabel>
+                        <FormLabel>{t("auth.field.panNumber")}</FormLabel>
                         <FormControl>
                           <Input
-                            placeholder="e.g., ABCDE1234F"
+                            placeholder={t("auth.placeholder.panNumber")}
                             {...field}
                             disabled={isLoading}
                             maxLength={10}
@@ -306,7 +282,7 @@ export function Register() {
                   name="preferredCurrency"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Preferred Currency</FormLabel>
+                      <FormLabel>{t("auth.field.preferredCurrency")}</FormLabel>
                       <FormControl>
                         <Select
                           onValueChange={field.onChange}
@@ -316,13 +292,23 @@ export function Register() {
                             <SelectValue placeholder="Select currency" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="KWD">KWD - Kuwaiti Dinar</SelectItem>
+                            <SelectItem value="KWD">
+                              KWD - Kuwaiti Dinar
+                            </SelectItem>
                             <SelectItem value="USD">USD - US Dollar</SelectItem>
                             <SelectItem value="EUR">EUR - Euro</SelectItem>
-                            <SelectItem value="GBP">GBP - British Pound</SelectItem>
-                            <SelectItem value="INR">INR - Indian Rupee</SelectItem>
-                            <SelectItem value="SAR">SAR - Saudi Riyal</SelectItem>
-                            <SelectItem value="AED">AED - UAE Dirham</SelectItem>
+                            <SelectItem value="GBP">
+                              GBP - British Pound
+                            </SelectItem>
+                            <SelectItem value="INR">
+                              INR - Indian Rupee
+                            </SelectItem>
+                            <SelectItem value="SAR">
+                              SAR - Saudi Riyal
+                            </SelectItem>
+                            <SelectItem value="AED">
+                              AED - UAE Dirham
+                            </SelectItem>
                           </SelectContent>
                         </Select>
                       </FormControl>

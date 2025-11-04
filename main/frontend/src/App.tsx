@@ -10,6 +10,7 @@ import { AppLayout } from "./components/layout/AppLayout";
 import { Landing } from "./pages/Landing";
 import { Login } from "./pages/auth/Login";
 import { Register } from "./pages/auth/Register";
+import { MagicLinkVerify } from "./pages/auth/MagicLinkVerify";
 import { Dashboard } from "./pages/Dashboard";
 import { CustomerProfile } from "./pages/customer/CustomerProfile";
 import { ProductList } from "./pages/products/ProductList";
@@ -46,6 +47,10 @@ function App() {
                         <Login />
                       </ProtectedAuthRoute>
                     }
+                  />
+                  <Route
+                    path="/auth/magic-link"
+                    element={<MagicLinkVerify />}
                   />
                   <Route
                     path="/register"

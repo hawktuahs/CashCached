@@ -1,5 +1,4 @@
 import axios from 'axios';
-import { jwtDecode } from 'jwt-decode';
 
 export const api = axios.create({
   baseURL: '/',
@@ -30,15 +29,6 @@ api.interceptors.request.use((config) => {
     config.headers = config.headers || {};
     if (!config.headers['Authorization']) {
       config.headers['Authorization'] = `Bearer ${token}`;
-    }
-    try {
-      const decoded = jwtDecode<{ sub: string }>(token);
-      const hasHeader = typeof config.headers['X-User-Id'] !== 'undefined';
-      if (decoded?.sub && !hasHeader) {
-        config.headers['X-User-Id'] = decoded.sub;
-      }
-    } catch {
-      // Ignore JWT decode errors
     }
   }
   return config;

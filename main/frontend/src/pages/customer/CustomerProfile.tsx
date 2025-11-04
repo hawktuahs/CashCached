@@ -188,11 +188,6 @@ export function CustomerProfile() {
     });
     setIsEditing(false);
   };
-    form.setValue("preferredCurrency", profile?.preferredCurrency || "INR", {
-      shouldDirty: false,
-    });
-    setIsEditing(false);
-  };
 
   const toggle2fa = async () => {
     setIsToggling2fa(true);
@@ -726,25 +721,37 @@ export function CustomerProfile() {
                             {t("profile.security.loginActivity.noActivity")}
                           </div>
                         ) : (
-                          activity.map((ev, idx) => (
-                            <div
-                              key={idx}
-                              className="px-4 py-3 text-sm flex items-start justify-between gap-4"
-                            >
-                              <div className="space-y-1">
-                                <div className="font-medium">{ev.type}</div>
-                                <div className="text-muted-foreground break-all max-w-[40ch]">
-                                  {ev.agent}
+                          activity.map(
+                            (
+                              ev: {
+                                type: string;
+                                ip: string;
+                                agent: string;
+                                timestamp: string;
+                              },
+                              idx: number
+                            ) => (
+                              <div
+                                key={idx}
+                                className="px-4 py-3 text-sm flex items-start justify-between gap-4"
+                              >
+                                <div className="space-y-1">
+                                  <div className="font-medium">{ev.type}</div>
+                                  <div className="text-muted-foreground break-all max-w-[40ch]">
+                                    {ev.agent}
+                                  </div>
+                                </div>
+                                <div className="text-right">
+                                  <div className="font-mono text-xs">
+                                    {ev.ip}
+                                  </div>
+                                  <div className="text-muted-foreground text-xs">
+                                    {new Date(ev.timestamp).toLocaleString()}
+                                  </div>
                                 </div>
                               </div>
-                              <div className="text-right">
-                                <div className="font-mono text-xs">{ev.ip}</div>
-                                <div className="text-muted-foreground text-xs">
-                                  {new Date(ev.timestamp).toLocaleString()}
-                                </div>
-                              </div>
-                            </div>
-                          ))
+                            )
+                          )
                         )}
                       </div>
                     </div>

@@ -30,7 +30,7 @@ import { useI18n } from "@/context/I18nContext";
 import { AuthNavbar } from "@/components/layout/AuthNavbar";
 
 const loginSchema = z.object({
-  username: z.string().min(3, "Username must be at least 3 characters"),
+  email: z.string().email("Please enter a valid email address"),
   password: z.string().min(6, "Password must be at least 6 characters"),
 });
 
@@ -57,7 +57,7 @@ export function Login() {
   const form = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
-      username: "",
+      email: "",
       password: "",
     },
   });
@@ -79,10 +79,11 @@ export function Login() {
           await verifyMagicLink(magicLinkToken);
           toast.success("Login successful!");
           navigate("/dashboard");
-        } catch (error: any) {
+        } catch (error) {
           const errorMessage =
-            error?.response?.data?.message ||
-            error?.message ||
+            (error as { response?: { data?: { message?: string } } })?.response
+              ?.data?.message ||
+            (error as { message?: string })?.message ||
             "Invalid or expired magic link";
           toast.error(errorMessage);
           navigate("/login");
@@ -95,20 +96,22 @@ export function Login() {
   const onSubmit = async (data: LoginFormData) => {
     setIsLoading(true);
     try {
-      await login(data.username, data.password);
+      await login(data.email, data.password);
       toast.success("Login successful!");
       navigate("/dashboard");
-    } catch (e: any) {
-      const msg = String(e?.message || "");
+    } catch (e) {
+      const msg = String((e as { message?: string })?.message || "");
       if (msg.startsWith("OTP_REQUIRED:")) {
-        const user = msg.split(":")[1] || data.username;
+        const user = msg.split(":")[1] || data.email;
         setOtpUser(user);
         setOtpMode(true);
         toast(t("auth.otp.sent"), {
           description: t("auth.otp.sentDesc"),
         });
       } else {
-        toast.error("Invalid username or password");
+        toast.error(
+          (e as { message?: string })?.message || "Invalid email or password"
+        );
       }
     } finally {
       setIsLoading(false);
@@ -121,10 +124,11 @@ export function Login() {
       await requestMagicLink(data.email);
       setMagicLinkSent(true);
       toast.success("Magic link sent! Check your email.");
-    } catch (error: any) {
+    } catch (error) {
       const errorMessage =
-        error?.response?.data?.message ||
-        error?.message ||
+        (error as { response?: { data?: { message?: string } } })?.response
+          ?.data?.message ||
+        (error as { message?: string })?.message ||
         "Failed to send magic link";
       toast.error(errorMessage);
     } finally {
@@ -140,10 +144,11 @@ export function Login() {
       await verifyOtp(otpUser, otpCode);
       toast.success("Login successful!");
       navigate("/dashboard");
-    } catch (error: any) {
+    } catch (error) {
       const errorMessage =
-        error?.response?.data?.message ||
-        error?.message ||
+        (error as { response?: { data?: { message?: string } } })?.response
+          ?.data?.message ||
+        (error as { message?: string })?.message ||
         "Invalid or expired OTP";
       toast.error(errorMessage);
       setOtpCode("");
@@ -164,9 +169,11 @@ export function Login() {
             {magicLinkToken ? (
               <>
                 <CardTitle className="text-2xl font-bold">
-                  Verifying Magic Link
+                  {t("auth.magicLink.verifying")}
                 </CardTitle>
-                <CardDescription>Please wait while we verify your link...</CardDescription>
+                <CardDescription>
+                  {t("auth.magicLink.verifyingMsg")}
+                </CardDescription>
               </>
             ) : otpMode ? (
               <>
@@ -182,9 +189,7 @@ export function Login() {
                 <CardTitle className="text-2xl font-bold">
                   {t("auth.login.welcome")}
                 </CardTitle>
-                <CardDescription>
-                  {t("auth.login.subtitle")}
-                </CardDescription>
+                <CardDescription>{t("auth.login.subtitle")}</CardDescription>
               </>
             )}
           </CardHeader>
@@ -193,7 +198,7 @@ export function Login() {
               <div className="text-center space-y-4">
                 <Spinner className="h-8 w-8 animate-spin mx-auto" />
                 <p className="text-sm text-muted-foreground">
-                  Verifying magic link...
+                  {t("auth.magicLink.verifyingMsg2")}
                 </p>
               </div>
             ) : otpMode ? (
@@ -240,8 +245,12 @@ export function Login() {
             ) : (
               <Tabs defaultValue="password" className="w-full">
                 <TabsList className="grid w-full grid-cols-2 mb-4">
-                  <TabsTrigger value="password">Password</TabsTrigger>
-                  <TabsTrigger value="magic-link">Magic Link</TabsTrigger>
+                  <TabsTrigger value="password">
+                    {t("auth.tabs.password")}
+                  </TabsTrigger>
+                  <TabsTrigger value="magic-link">
+                    {t("auth.tabs.magicLink")}
+                  </TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="password">
@@ -252,13 +261,14 @@ export function Login() {
                     >
                       <FormField
                         control={form.control}
-                        name="username"
+                        name="email"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>{t("auth.login.username")}</FormLabel>
+                            <FormLabel>{t("auth.login.email")}</FormLabel>
                             <FormControl>
                               <Input
-                                placeholder={t("auth.placeholder.username")}
+                                type="email"
+                                placeholder={t("auth.placeholder.email")}
                                 {...field}
                                 disabled={isLoading}
                               />
@@ -306,7 +316,11 @@ export function Login() {
                           </FormItem>
                         )}
                       />
-                      <Button type="submit" className="w-full" disabled={isLoading}>
+                      <Button
+                        type="submit"
+                        className="w-full"
+                        disabled={isLoading}
+                      >
                         {isLoading ? (
                           <>
                             <Spinner className="h-4 w-4 animate-spin" />
@@ -325,9 +339,11 @@ export function Login() {
                     <div className="text-center space-y-4 py-6">
                       <Mail className="h-12 w-12 mx-auto text-primary" />
                       <div>
-                        <p className="font-medium">Check your email!</p>
+                        <p className="font-medium">
+                          {t("auth.magicLink.sent")}
+                        </p>
                         <p className="text-sm text-muted-foreground mt-2">
-                          We sent a magic link to your email address. Click it to sign in.
+                          {t("auth.magicLink.subtitle")}
                         </p>
                       </div>
                       <Button
@@ -337,7 +353,7 @@ export function Login() {
                           magicLinkForm.reset();
                         }}
                       >
-                        Send another link
+                        {t("auth.magicLink.sendLink")}
                       </Button>
                     </div>
                   ) : (
@@ -351,11 +367,13 @@ export function Login() {
                           name="email"
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel>Email Address</FormLabel>
+                              <FormLabel>
+                                {t("auth.magicLink.emailLabel")}
+                              </FormLabel>
                               <FormControl>
                                 <Input
                                   type="email"
-                                  placeholder="your@email.com"
+                                  placeholder={t("auth.placeholder.email")}
                                   {...field}
                                   disabled={isLoading}
                                 />
@@ -364,16 +382,20 @@ export function Login() {
                             </FormItem>
                           )}
                         />
-                        <Button type="submit" className="w-full" disabled={isLoading}>
+                        <Button
+                          type="submit"
+                          className="w-full"
+                          disabled={isLoading}
+                        >
                           {isLoading ? (
                             <>
                               <Spinner className="h-4 w-4 animate-spin" />
-                              Sending...
+                              {t("auth.magicLink.sending")}
                             </>
                           ) : (
                             <>
                               <Mail className="h-4 w-4 mr-2" />
-                              Send Magic Link
+                              {t("auth.magicLink.sendLink")}
                             </>
                           )}
                         </Button>

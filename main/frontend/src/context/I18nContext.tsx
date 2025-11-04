@@ -1,4 +1,4 @@
-import { createContext, useContext, useMemo, useState } from "react";
+import { createContext, useContext, useMemo, useState, useEffect } from "react";
 import type { ReactNode } from "react";
 import { TOKEN_SYMBOL } from "@/lib/currency";
 
@@ -442,6 +442,35 @@ const dict: Dict = {
     en: "Confirm Password",
     ja: "パスワード確認",
   },
+  "auth.field.address": { en: "Address", ja: "住所" },
+  "auth.field.dateOfBirth": { en: "Date of Birth", ja: "生年月日" },
+  "auth.field.aadhaarNumber": { en: "Aadhaar Number", ja: "アーダール番号" },
+  "auth.field.panNumber": { en: "PAN Number", ja: "PAN番号" },
+  "auth.field.preferredCurrency": {
+    en: "Preferred Currency",
+    ja: "希望通貨",
+  },
+  "auth.placeholder.address": {
+    en: "Enter your residential address",
+    ja: "住所を入力してください",
+  },
+  "auth.placeholder.aadhaarNumber": {
+    en: "Enter 12-digit Aadhaar number",
+    ja: "12桁のアーダール番号を入力",
+  },
+  "auth.placeholder.panNumber": {
+    en: "Enter PAN number (e.g., ABCDE1234F)",
+    ja: "PAN番号を入力してください",
+  },
+  "auth.register.success": {
+    en: "Registration successful!",
+    ja: "登録が完了しました",
+  },
+  "auth.register.failed": {
+    en: "Registration failed. Please try again.",
+    ja: "登録に失敗しました。もう一度お試しください。",
+  },
+  "auth.register.password": { en: "Password", ja: "パスワード" },
   "auth.placeholder.username": {
     en: "Enter your username",
     ja: "ユーザー名を入力",
@@ -482,6 +511,49 @@ const dict: Dict = {
   },
   "auth.showPassword": { en: "Show password", ja: "パスワードを表示" },
   "auth.hidePassword": { en: "Hide password", ja: "パスワードを非表示" },
+  "auth.tabs.password": { en: "Password", ja: "パスワード" },
+  "auth.tabs.magicLink": { en: "Magic Link", ja: "マジックリンク" },
+  "auth.magicLink.title": {
+    en: "Sign in with Magic Link",
+    ja: "マジックリンクでサインイン",
+  },
+  "auth.magicLink.subtitle": {
+    en: "We'll send you a secure link to sign in",
+    ja: "サインインするための安全なリンクを送信します",
+  },
+  "auth.magicLink.emailLabel": { en: "Email address", ja: "メールアドレス" },
+  "auth.magicLink.sendLink": {
+    en: "Send Magic Link",
+    ja: "マジックリンク送信",
+  },
+  "auth.magicLink.sending": {
+    en: "Sending link...",
+    ja: "リンクを送信中...",
+  },
+  "auth.magicLink.sent": {
+    en: "Check your email for the magic link",
+    ja: "メールでマジックリンクを確認してください",
+  },
+  "auth.magicLink.verifying": {
+    en: "Verifying Magic Link",
+    ja: "マジックリンク検証中",
+  },
+  "auth.magicLink.verifyingMsg": {
+    en: "Please wait while we verify your link...",
+    ja: "リンクを検証中です。お待ちください...",
+  },
+  "auth.magicLink.verifyingMsg2": {
+    en: "Verifying magic link...",
+    ja: "マジックリンクを検証中...",
+  },
+  "auth.magicLink.noToken": {
+    en: "No magic link token provided",
+    ja: "マジックリンクトークンが提供されていません",
+  },
+  "auth.magicLink.invalidOrExpired": {
+    en: "Invalid or expired magic link",
+    ja: "マジックリンクが無効または期限切れです",
+  },
   "profile.title": { en: "My Profile", ja: "マイプロフィール" },
   "profile.update": { en: "Update Profile", ja: "プロフィール更新" },
   "profile.subtitle": {
@@ -955,7 +1027,17 @@ interface I18nContextType {
 const I18nContext = createContext<I18nContextType | undefined>(undefined);
 
 export function I18nProvider({ children }: { children: ReactNode }) {
-  const [lang, setLang] = useState<Lang>("en");
+  const [lang, setLang] = useState<Lang>(() => {
+    if (typeof window === "undefined") return "en";
+    const saved = localStorage.getItem("i18n-lang");
+    return (saved as Lang) || "en";
+  });
+
+  useEffect(() => {
+    localStorage.setItem("i18n-lang", lang);
+    document.documentElement.lang = lang;
+  }, [lang]);
+
   const missing = useMemo(() => new Set<string>(), []);
 
   const t = (key: string) => {
