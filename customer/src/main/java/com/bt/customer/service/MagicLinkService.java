@@ -3,6 +3,7 @@ package com.bt.customer.service;
 import com.bt.customer.dto.AuthResponse;
 import com.bt.customer.entity.User;
 import com.bt.customer.exception.InvalidCredentialsException;
+import com.bt.customer.exception.MagicLinkException;
 import com.bt.customer.repository.UserRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -42,7 +43,7 @@ public class MagicLinkService {
 
     public void sendMagicLink(String email) {
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new InvalidCredentialsException("Email not found"));
+                .orElseThrow(() -> new MagicLinkException("No user with this email"));
 
         String token = UUID.randomUUID().toString();
         String magicLinkKey = MAGIC_LINK_PREFIX + token;

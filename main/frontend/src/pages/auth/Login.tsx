@@ -109,9 +109,12 @@ export function Login() {
           description: t("auth.otp.sentDesc"),
         });
       } else {
-        toast.error(
-          (e as { message?: string })?.message || "Invalid email or password"
-        );
+        const errorMessage =
+          (e as { response?: { data?: { message?: string } } })?.response?.data
+            ?.message ||
+          (e as { message?: string })?.message ||
+          "Invalid email or password";
+        toast.error(errorMessage);
       }
     } finally {
       setIsLoading(false);
