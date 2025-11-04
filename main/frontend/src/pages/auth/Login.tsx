@@ -105,9 +105,11 @@ export function Login() {
         const user = msg.split(":")[1] || data.email;
         setOtpUser(user);
         setOtpMode(true);
-        toast(t("auth.otp.sent"), {
-          description: t("auth.otp.sentDesc"),
-        });
+        setTimeout(() => {
+          toast(t("auth.otp.sent"), {
+            description: t("auth.otp.sentDesc"),
+          });
+        }, 0);
       } else {
         const errorMessage =
           (e as { response?: { data?: { message?: string } } })?.response?.data
@@ -207,7 +209,9 @@ export function Login() {
             ) : otpMode ? (
               <form onSubmit={onVerifyOtp} className="space-y-4">
                 <div>
-                  <FormLabel>{t("auth.otp.code")}</FormLabel>
+                  <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                    {t("auth.otp.code")}
+                  </label>
                   <Input
                     placeholder={t("auth.otp.placeholder")}
                     value={otpCode}

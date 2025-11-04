@@ -3,6 +3,7 @@ package com.bt.customer.service;
 import com.bt.customer.dto.*;
 import com.bt.customer.entity.User;
 import com.bt.customer.exception.InvalidCredentialsException;
+import com.bt.customer.exception.OtpException;
 import com.bt.customer.exception.UserAlreadyExistsException;
 import com.bt.customer.repository.UserRepository;
 import com.bt.customer.security.JwtTokenProvider;
@@ -133,6 +134,7 @@ public class AuthService {
             boolean twoFA = customerService.isTwoFactorEnabledForCurrentUser()
                     || customerServiceIsTwoFactorEnabled(user.getEmail());
             if (twoFA) {
+                redisOtpService.removeOtp(user.getEmail());
                 String code = generateOtp();
                 redisOtpService.storeOtp(user.getEmail(), code);
                 log.info("Generated OTP for user {}: {} (valid 5m)", user.getEmail(), code);
@@ -160,10 +162,10 @@ public class AuthService {
 
     public AuthResponse verifyOtp(String email, String code) {
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new InvalidCredentialsException("Invalid email"));
+                .orElseThrow(() -> new OtpException("Invalid or expired OTP"));
 
         if (!redisOtpService.validateOtp(email, code)) {
-            throw new InvalidCredentialsException("Invalid or expired OTP");
+            throw new OtpException("Invalid or expired OTP");
         }
 
         String sessionId = redisSessionService.createSession(user);

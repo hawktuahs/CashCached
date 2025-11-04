@@ -61,9 +61,9 @@ public class AuthController {
     @PostMapping("/verify-otp")
     @Operation(summary = "Verify OTP", description = "Completes login when two-factor authentication is enabled")
     public ResponseEntity<AuthResponse> verifyOtp(@RequestBody Map<String, String> body) {
-        String username = String.valueOf(body.getOrDefault("username", ""));
+        String email = String.valueOf(body.getOrDefault("email", ""));
         String code = String.valueOf(body.getOrDefault("code", ""));
-        AuthResponse response = authService.verifyOtp(username, code);
+        AuthResponse response = authService.verifyOtp(email, code);
         return ResponseEntity.ok(response);
     }
 
