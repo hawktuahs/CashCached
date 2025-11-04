@@ -106,10 +106,11 @@ public class AuthService {
 
         userRepository.save(user);
 
-        String token = tokenProvider.generateTokenForUser(user.getEmail(), user.getRole().name());
+        String sessionId = redisSessionService.createSession(user);
+        recordLogin(user.getEmail(), "REGISTRATION");
 
         return new AuthResponse(
-                token,
+                sessionId,
                 user.getEmail(),
                 user.getRole().name(),
                 "User registered successfully");
