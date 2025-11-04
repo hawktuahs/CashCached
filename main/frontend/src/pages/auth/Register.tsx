@@ -47,6 +47,18 @@ const registerSchema = z
       .string()
       .min(5, "Phone number is required")
       .max(20, "Phone number cannot exceed 20 characters"),
+    address: z.string().max(500, "Address cannot exceed 500 characters"),
+    dateOfBirth: z.string().refine((date) => {
+      const d = new Date(date);
+      return d < new Date();
+    }, "Date of birth must be in the past"),
+    aadhaarNumber: z
+      .string()
+      .regex(/^\d{12}$/, "Aadhaar must be 12 digits"),
+    panNumber: z
+      .string()
+      .regex(/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/, "Invalid PAN format"),
+    preferredCurrency: z.string().length(3, "Currency code must be 3 characters"),
     role: z.enum(["CUSTOMER", "BANKOFFICER", "ADMIN"]),
   })
   .refine((data) => data.password === data.confirmPassword, {
@@ -74,6 +86,11 @@ export function Register() {
       password: "",
       confirmPassword: "",
       phoneNumber: "",
+      address: "",
+      dateOfBirth: "",
+      aadhaarNumber: "",
+      panNumber: "",
+      preferredCurrency: "KWD",
       role: "CUSTOMER",
     },
   });
@@ -88,6 +105,11 @@ export function Register() {
         email: data.email,
         password: data.password,
         phoneNumber: data.phoneNumber,
+        address: data.address,
+        dateOfBirth: data.dateOfBirth,
+        aadhaarNumber: data.aadhaarNumber,
+        panNumber: data.panNumber,
+        preferredCurrency: data.preferredCurrency,
         role: data.role,
       });
       toast.success("Registration successful!");
@@ -202,6 +224,107 @@ export function Register() {
                           {...field}
                           disabled={isLoading}
                         />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="dateOfBirth"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Date of Birth</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="date"
+                          {...field}
+                          disabled={isLoading}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="address"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Address</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="Enter your residential address"
+                          {...field}
+                          disabled={isLoading}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="aadhaarNumber"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Aadhaar Number</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="12-digit number"
+                            {...field}
+                            disabled={isLoading}
+                            maxLength={12}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="panNumber"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>PAN Number</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="e.g., ABCDE1234F"
+                            {...field}
+                            disabled={isLoading}
+                            maxLength={10}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+                <FormField
+                  control={form.control}
+                  name="preferredCurrency"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Preferred Currency</FormLabel>
+                      <FormControl>
+                        <Select
+                          onValueChange={field.onChange}
+                          defaultValue={field.value}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select currency" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="KWD">KWD - Kuwaiti Dinar</SelectItem>
+                            <SelectItem value="USD">USD - US Dollar</SelectItem>
+                            <SelectItem value="EUR">EUR - Euro</SelectItem>
+                            <SelectItem value="GBP">GBP - British Pound</SelectItem>
+                            <SelectItem value="INR">INR - Indian Rupee</SelectItem>
+                            <SelectItem value="SAR">SAR - Saudi Riyal</SelectItem>
+                            <SelectItem value="AED">AED - UAE Dirham</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </FormControl>
                       <FormMessage />
                     </FormItem>

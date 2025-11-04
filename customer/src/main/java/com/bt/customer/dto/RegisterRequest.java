@@ -39,6 +39,25 @@ public class RegisterRequest {
     @Schema(description = "Contact phone number", example = "+1234567890")
     private String phoneNumber;
 
+    @Size(max = 500, message = "Address cannot exceed 500 characters")
+    @Schema(description = "Residential address", example = "123 Main St, City, Country")
+    private String address;
+
+    @Size(min = 12, max = 12, message = "Aadhaar must be 12 digits")
+    @Schema(description = "12-digit Aadhaar number", example = "123456789012")
+    private String aadhaarNumber;
+
+    @Size(min = 10, max = 10, message = "PAN must be 10 characters")
+    @Schema(description = "10-character PAN number", example = "ABCDE1234F")
+    private String panNumber;
+
+    @Schema(description = "Date of birth (ISO 8601 format)", example = "1990-01-15")
+    private java.time.LocalDate dateOfBirth;
+
+    @Size(max = 10, message = "Currency code cannot exceed 10 characters")
+    @Schema(description = "Preferred currency code", example = "KWD")
+    private String preferredCurrency;
+
     @Schema(description = "User role (defaults to CUSTOMER)", example = "CUSTOMER", allowableValues = { "CUSTOMER",
             "ADMIN", "BANKOFFICER" })
     private User.Role role;

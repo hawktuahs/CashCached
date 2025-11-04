@@ -9,6 +9,11 @@ interface User {
   lastName: string
   role: 'CUSTOMER' | 'BANKOFFICER' | 'ADMIN'
   preferredCurrency?: string
+  address?: string
+  aadhaarNumber?: string
+  panNumber?: string
+  dateOfBirth?: string
+  classification?: string
 }
 
 interface AuthContextType {
@@ -20,6 +25,8 @@ interface AuthContextType {
   isLoading: boolean
   isAuthenticated: boolean
   verifyOtp: (username: string, code: string) => Promise<void>
+  requestMagicLink: (email: string) => Promise<void>
+  verifyMagicLink: (token: string) => Promise<void>
   refreshProfile: () => Promise<void>
   preferredCurrency: string
 }
@@ -31,6 +38,11 @@ interface RegisterData {
   firstName: string
   lastName: string
   phoneNumber: string
+  address?: string
+  dateOfBirth?: string
+  aadhaarNumber?: string
+  panNumber?: string
+  preferredCurrency?: string
   role: 'CUSTOMER' | 'BANKOFFICER' | 'ADMIN'
 }
 
@@ -100,38 +112,56 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (response?.data?.twoFactorRequired) {
       throw new Error(`OTP_REQUIRED:${username}`)
     }
-    const { token: newToken } = response.data
-    localStorage.setItem('token', newToken)
-    setToken(newToken)
-    api.defaults.headers.common['Authorization'] = `Bearer ${newToken}`
-    const decoded = jwtDecode<{ sub: string; role: string }>(newToken)
+    const { token: sessionId } = response.data
+    localStorage.setItem('token', sessionId)
+    setToken(sessionId)
+    api.defaults.headers.common['Authorization'] = `Bearer ${sessionId}`
     setUser({
-      id: decoded.sub,
+      id: '',
       email: '',
       firstName: '',
       lastName: '',
-      role: decoded.role as 'CUSTOMER' | 'BANKOFFICER' | 'ADMIN',
+      role: 'CUSTOMER',
       preferredCurrency: 'KWD',
     })
-    api.defaults.headers.common['X-User-Id'] = decoded.sub
     await hydrateProfile()
   }
 
   const verifyOtp = async (username: string, code: string) => {
     const response = await api.post('/api/auth/verify-otp', { username, code })
-    const { token: newToken } = response.data
-    localStorage.setItem('token', newToken)
-    setToken(newToken)
-    api.defaults.headers.common['Authorization'] = `Bearer ${newToken}`
-    const decoded = jwtDecode<{ sub: string; role: string }>(newToken)
+    const { token: sessionId } = response.data
+    localStorage.setItem('token', sessionId)
+    setToken(sessionId)
+    api.defaults.headers.common['Authorization'] = `Bearer ${sessionId}`
     setUser({
-      id: decoded.sub,
+      id: '',
       email: '',
       firstName: '',
       lastName: '',
-      role: decoded.role as 'CUSTOMER' | 'BANKOFFICER' | 'ADMIN'
+      role: 'CUSTOMER'
     })
-    api.defaults.headers.common['X-User-Id'] = decoded.sub
+    await hydrateProfile()
+  }
+
+  const requestMagicLink = async (email: string) => {
+    await api.post('/api/auth/magic-link/request', { email })
+  }
+
+  const verifyMagicLink = async (token: string) => {
+    const response = await api.post('/api/auth/magic-link/verify', {}, { params: { token } })
+    const { token: sessionId } = response.data
+    localStorage.setItem('token', sessionId)
+    setToken(sessionId)
+    api.defaults.headers.common['Authorization'] = `Bearer ${sessionId}`
+    setUser({
+      id: '',
+      email: '',
+      firstName: '',
+      lastName: '',
+      role: 'CUSTOMER',
+      preferredCurrency: 'KWD',
+    })
+    await hydrateProfile()
   }
 
   const register = async (userData: RegisterData) => {
@@ -142,25 +172,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         fullName: `${userData.firstName} ${userData.lastName}`,
         email: userData.email,
         phoneNumber: userData.phoneNumber,
+        address: userData.address,
+        dateOfBirth: userData.dateOfBirth,
+        aadhaarNumber: userData.aadhaarNumber,
+        panNumber: userData.panNumber,
+        preferredCurrency: userData.preferredCurrency || 'KWD',
         role: userData.role,
       }
       const response = await api.post('/api/auth/register', payload)
-      const { token: newToken } = response.data
+      const { token: sessionId } = response.data
       
-      localStorage.setItem('token', newToken)
-      setToken(newToken)
-      api.defaults.headers.common['Authorization'] = `Bearer ${newToken}`
+      localStorage.setItem('token', sessionId)
+      setToken(sessionId)
+      api.defaults.headers.common['Authorization'] = `Bearer ${sessionId}`
       
-      const decoded = jwtDecode<{ sub: string; role: string }>(newToken)
       setUser({
-        id: decoded.sub,
+        id: '',
         email: userData.email,
         firstName: userData.firstName,
         lastName: userData.lastName,
-        role: decoded.role as 'CUSTOMER' | 'BANKOFFICER' | 'ADMIN',
-        preferredCurrency: 'KWD',
+        role: userData.role,
+        preferredCurrency: userData.preferredCurrency || 'KWD',
+        address: userData.address,
+        aadhaarNumber: userData.aadhaarNumber,
+        panNumber: userData.panNumber,
+        dateOfBirth: userData.dateOfBirth,
       })
-      api.defaults.headers.common['X-User-Id'] = decoded.sub
     } catch (error) {
       throw new Error('Registration failed')
     }
@@ -183,6 +220,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isLoading,
       isAuthenticated,
       verifyOtp,
+      requestMagicLink,
+      verifyMagicLink,
       refreshProfile: hydrateProfile,
       preferredCurrency: user?.preferredCurrency || 'KWD',
     }}>

@@ -58,6 +58,9 @@ public class AuthService {
     @Autowired
     private RedisTokenService redisTokenService;
 
+    @Autowired
+    private RedisSessionService redisSessionService;
+
     @Value("${app.mail.from:${spring.mail.username}}")
     private String fromEmail;
 
@@ -87,12 +90,20 @@ public class AuthService {
             throw new UserAlreadyExistsException("Email already registered: " + request.getEmail());
         }
 
+        User.CustomerClassification classification = computeClassification(request.getDateOfBirth());
+
         User user = User.builder()
                 .username(request.getUsername())
                 .password(passwordEncoder.encode(request.getPassword()))
                 .fullName(request.getFullName())
                 .email(request.getEmail())
                 .phoneNumber(request.getPhoneNumber())
+                .address(request.getAddress())
+                .aadhaarNumber(request.getAadhaarNumber())
+                .panNumber(request.getPanNumber())
+                .dateOfBirth(request.getDateOfBirth())
+                .preferredCurrency(request.getPreferredCurrency() != null ? request.getPreferredCurrency() : "KWD")
+                .classification(classification)
                 .role(request.getRole() != null ? request.getRole() : User.Role.CUSTOMER)
                 .active(true)
                 .build();
@@ -138,10 +149,9 @@ public class AuthService {
                 return resp;
             }
 
-            String token = tokenProvider.generateTokenForUser(user.getUsername(), user.getRole().name());
-            redisTokenService.storeToken(token, user.getUsername());
+            String sessionId = redisSessionService.createSession(user);
             recordLogin(user.getUsername(), "PASSWORD");
-            return new AuthResponse(token, user.getUsername(), user.getRole().name(), "Authentication successful");
+            return new AuthResponse(sessionId, user.getUsername(), user.getRole().name(), "Authentication successful");
         } catch (Exception e) {
             throw new InvalidCredentialsException("Invalid username or password");
         }
@@ -155,10 +165,9 @@ public class AuthService {
             throw new InvalidCredentialsException("Invalid or expired OTP");
         }
 
-        String token = tokenProvider.generateTokenForUser(user.getUsername(), user.getRole().name());
-        redisTokenService.storeToken(token, user.getUsername());
+        String sessionId = redisSessionService.createSession(user);
         recordLogin(user.getUsername(), "OTP");
-        return new AuthResponse(token, user.getUsername(), user.getRole().name(), "Authentication successful");
+        return new AuthResponse(sessionId, user.getUsername(), user.getRole().name(), "Authentication successful");
     }
 
     private boolean customerServiceIsTwoFactorEnabled(String username) {
@@ -220,5 +229,22 @@ public class AuthService {
                     "timestamp", e.at.toString()));
         }
         return out;
+    }
+
+    private User.CustomerClassification computeClassification(java.time.LocalDate dateOfBirth) {
+        if (dateOfBirth == null) {
+            return User.CustomerClassification.REGULAR;
+        }
+
+        java.time.LocalDate today = java.time.LocalDate.now();
+        long age = java.time.temporal.ChronoUnit.YEARS.between(dateOfBirth, today);
+
+        if (age < 18) {
+            return User.CustomerClassification.MINOR;
+        } else if (age >= 60) {
+            return User.CustomerClassification.SENIOR;
+        } else {
+            return User.CustomerClassification.REGULAR;
+        }
     }
 }

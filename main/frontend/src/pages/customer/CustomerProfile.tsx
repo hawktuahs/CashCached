@@ -43,6 +43,10 @@ const profileSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
   phoneNumber: z.string().optional(),
   preferredCurrency: z.string().min(1, "Select a currency"),
+  address: z.string().optional(),
+  dateOfBirth: z.string().optional(),
+  aadhaarNumber: z.string().optional(),
+  panNumber: z.string().optional(),
 });
 
 type ProfileFormData = z.infer<typeof profileSchema>;
@@ -53,6 +57,11 @@ interface CustomerProfile {
   fullName: string;
   email: string;
   phoneNumber?: string;
+  address?: string;
+  aadhaarNumber?: string;
+  panNumber?: string;
+  dateOfBirth?: string;
+  classification?: string;
   role: string;
   active: boolean;
   preferredCurrency?: string;
@@ -82,11 +91,15 @@ export function CustomerProfile() {
       fullName: "",
       email: "",
       phoneNumber: "",
-      preferredCurrency: "INR",
+      preferredCurrency: "KWD",
+      address: "",
+      dateOfBirth: "",
+      aadhaarNumber: "",
+      panNumber: "",
     },
   });
 
-  const currencyOptions = ["KWD", "USD", "INR", "GBP", "CAD", "MXN", "ZAR"];
+  const currencyOptions = ["KWD", "USD", "EUR", "GBP", "INR", "SAR", "AED"];
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -101,7 +114,11 @@ export function CustomerProfile() {
           fullName: profileData.fullName || "",
           email: profileData.email || "",
           phoneNumber: profileData.phoneNumber || "",
-          preferredCurrency: profileData.preferredCurrency || "INR",
+          preferredCurrency: profileData.preferredCurrency || "KWD",
+          address: profileData.address || "",
+          dateOfBirth: profileData.dateOfBirth || "",
+          aadhaarNumber: profileData.aadhaarNumber || "",
+          panNumber: profileData.panNumber || "",
         });
       } catch (error) {
         console.error("Failed to fetch profile:", error);
@@ -131,6 +148,10 @@ export function CustomerProfile() {
         email: data.email,
         phoneNumber: data.phoneNumber || "",
         preferredCurrency: data.preferredCurrency,
+        address: data.address || "",
+        dateOfBirth: data.dateOfBirth || "",
+        aadhaarNumber: data.aadhaarNumber || "",
+        panNumber: data.panNumber || "",
       };
       const response = await api.put("/api/customer/update", payload);
       setProfile(response.data);
@@ -150,6 +171,23 @@ export function CustomerProfile() {
     form.setValue("phoneNumber", profile?.phoneNumber || "", {
       shouldDirty: false,
     });
+    form.setValue("preferredCurrency", profile?.preferredCurrency || "KWD", {
+      shouldDirty: false,
+    });
+    form.setValue("address", profile?.address || "", {
+      shouldDirty: false,
+    });
+    form.setValue("dateOfBirth", profile?.dateOfBirth || "", {
+      shouldDirty: false,
+    });
+    form.setValue("aadhaarNumber", profile?.aadhaarNumber || "", {
+      shouldDirty: false,
+    });
+    form.setValue("panNumber", profile?.panNumber || "", {
+      shouldDirty: false,
+    });
+    setIsEditing(false);
+  };
     form.setValue("preferredCurrency", profile?.preferredCurrency || "INR", {
       shouldDirty: false,
     });
@@ -380,6 +418,16 @@ export function CustomerProfile() {
                 </span>
                 <Badge variant="secondary">{t("profile.status.active")}</Badge>
               </div>
+              {profile?.classification && (
+                <div className="flex items-center gap-3 text-sm">
+                  <Shield className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-muted-foreground">Classification</span>
+                  <Badge variant="outline">
+                    {profile.classification.charAt(0).toUpperCase() +
+                      profile.classification.slice(1)}
+                  </Badge>
+                </div>
+              )}
               <Separator />
               <div className="space-y-2 text-sm">
                 <div className="flex items-center gap-3">
@@ -475,6 +523,81 @@ export function CustomerProfile() {
                           </FormItem>
                         )}
                       />
+
+                      <FormField
+                        control={form.control}
+                        name="dateOfBirth"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Date of Birth</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="date"
+                                {...field}
+                                disabled={!isEditing}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="address"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Address</FormLabel>
+                            <FormControl>
+                              <Input
+                                {...field}
+                                disabled={!isEditing}
+                                placeholder="Residential Address"
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <FormField
+                          control={form.control}
+                          name="aadhaarNumber"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Aadhaar Number</FormLabel>
+                              <FormControl>
+                                <Input
+                                  {...field}
+                                  disabled={!isEditing}
+                                  placeholder="12-digit"
+                                  maxLength={12}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="panNumber"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>PAN Number</FormLabel>
+                              <FormControl>
+                                <Input
+                                  {...field}
+                                  disabled={!isEditing}
+                                  placeholder="10-character"
+                                  maxLength={10}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
 
                       <FormField
                         control={form.control}
