@@ -96,7 +96,8 @@ public class MagicLinkService {
         }
 
         String sessionId = redisSessionService.createSession(user);
-        return new AuthResponse(sessionId, email, user.getRole().name(), "Authentication successful");
+        return new AuthResponse(sessionId, user.getUsername(), email, user.getRole().name(),
+                "Authentication successful");
     }
 
     private void sendMagicLinkEmail(String to, String magicLink, String fullName) {

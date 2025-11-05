@@ -18,6 +18,9 @@ public class User {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(nullable = false, unique = true, length = 50)
+    private String username;
+
     @Column(nullable = false)
     private String password;
 
@@ -81,11 +84,18 @@ public class User {
         if (preferredCurrency == null || preferredCurrency.isBlank()) {
             preferredCurrency = "KWD";
         }
+        if (username != null) {
+            username = username.trim();
+        }
     }
 
     @PreUpdate
     protected void onUpdate() {
         updatedAt = LocalDateTime.now();
+    }
+
+    public void setUsername(String username) {
+        this.username = username != null ? username.trim() : null;
     }
 
     public enum Role {

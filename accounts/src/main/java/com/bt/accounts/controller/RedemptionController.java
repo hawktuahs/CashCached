@@ -40,11 +40,12 @@ public class RedemptionController {
             @ApiResponse(responseCode = "401", description = "Unauthorized - Invalid or missing authentication token", content = @Content)
     })
     public ResponseEntity<com.bt.accounts.dto.ApiResponse<RedemptionEnquiryResponse>> getRedemptionEnquiry(
-            @Parameter(description = "FD Account number", required = true, example = "FD001-2024-00001") @PathVariable String accountNo) {
+            @Parameter(description = "FD Account number", required = true, example = "FD001-2024-00001") @PathVariable String accountNo,
+            @RequestHeader(value = "Authorization", required = false) String authHeader) {
 
         log.info("Processing redemption enquiry for account: {}", accountNo);
-
-        RedemptionEnquiryResponse enquiry = redemptionService.getRedemptionEnquiry(accountNo);
+        String bearer = authHeader != null ? authHeader : "";
+        RedemptionEnquiryResponse enquiry = redemptionService.getRedemptionEnquiry(accountNo, bearer);
 
         com.bt.accounts.dto.ApiResponse<RedemptionEnquiryResponse> response = com.bt.accounts.dto.ApiResponse
                 .<RedemptionEnquiryResponse>builder()
@@ -71,11 +72,13 @@ public class RedemptionController {
             @ApiResponse(responseCode = "401", description = "Unauthorized - Invalid or missing authentication token", content = @Content)
     })
     public ResponseEntity<com.bt.accounts.dto.ApiResponse<RedemptionResponse>> processRedemption(
-            @Parameter(description = "FD Account number", required = true, example = "FD001-2024-00001") @PathVariable String accountNo) {
+            @Parameter(description = "FD Account number", required = true, example = "FD001-2024-00001") @PathVariable String accountNo,
+            @RequestHeader(value = "Authorization", required = false) String authHeader) {
 
         log.info("Processing redemption for account: {}", accountNo);
+        String bearer = authHeader != null ? authHeader : "";
 
-        RedemptionResponse redemption = redemptionService.processRedemption(accountNo, null);
+        RedemptionResponse redemption = redemptionService.processRedemption(accountNo, null, bearer);
 
         com.bt.accounts.dto.ApiResponse<RedemptionResponse> response = com.bt.accounts.dto.ApiResponse
                 .<RedemptionResponse>builder()
@@ -98,11 +101,13 @@ public class RedemptionController {
             @ApiResponse(responseCode = "401", description = "Unauthorized", content = @Content)
     })
     public ResponseEntity<com.bt.accounts.dto.ApiResponse<RedemptionEnquiryResponse>> checkRedemptionEligibility(
-            @Parameter(description = "FD Account number", required = true, example = "FD001-2024-00001") @PathVariable String accountNo) {
+            @Parameter(description = "FD Account number", required = true, example = "FD001-2024-00001") @PathVariable String accountNo,
+            @RequestHeader(value = "Authorization", required = false) String authHeader) {
 
         log.info("Checking redemption eligibility for account: {}", accountNo);
 
-        RedemptionEnquiryResponse enquiry = redemptionService.getRedemptionEnquiry(accountNo);
+        String bearer = authHeader != null ? authHeader : "";
+        RedemptionEnquiryResponse enquiry = redemptionService.getRedemptionEnquiry(accountNo, bearer);
 
         com.bt.accounts.dto.ApiResponse<RedemptionEnquiryResponse> response = com.bt.accounts.dto.ApiResponse
                 .<RedemptionEnquiryResponse>builder()

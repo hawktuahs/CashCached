@@ -2,8 +2,11 @@ package com.bt.accounts.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+
+import com.bt.accounts.time.TimeProvider;
 
 @Entity
 @Table(name = "fd_accounts", indexes = {
@@ -95,6 +98,12 @@ public class FdAccount {
     @Column(name = "total_interest_accrued", precision = 38, scale = 18)
     private BigDecimal totalInterestAccrued;
 
+    @Column(name = "premature_penalty_rate", precision = 5, scale = 4)
+    private BigDecimal prematurePenaltyRate;
+
+    @Column(name = "premature_penalty_grace_days")
+    private Integer prematurePenaltyGraceDays;
+
     @Column(name = "active_pricing_rule_id")
     private Long activePricingRuleId;
 
@@ -106,8 +115,9 @@ public class FdAccount {
 
     @PrePersist
     protected void onCreate() {
-        createdAt = LocalDateTime.now();
-        updatedAt = LocalDateTime.now();
+        LocalDateTime now = TimeProvider.currentDateTime();
+        createdAt = now;
+        updatedAt = now;
         if (status == null) {
             status = AccountStatus.ACTIVE;
         }
@@ -116,6 +126,12 @@ public class FdAccount {
         }
         if (baseInterestRate == null) {
             baseInterestRate = interestRate;
+        }
+        if (prematurePenaltyRate == null) {
+            prematurePenaltyRate = BigDecimal.ZERO;
+        }
+        if (prematurePenaltyGraceDays == null) {
+            prematurePenaltyGraceDays = 0;
         }
         if (createdAt != null) {
             Integer tenure = productMaxTenureMonths != null ? productMaxTenureMonths : tenureMonths;
@@ -133,7 +149,7 @@ public class FdAccount {
 
     @PreUpdate
     protected void onUpdate() {
-        updatedAt = LocalDateTime.now();
+        updatedAt = TimeProvider.currentDateTime();
     }
 
     public enum AccountStatus {

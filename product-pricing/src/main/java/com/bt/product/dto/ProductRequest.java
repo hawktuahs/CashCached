@@ -67,4 +67,12 @@ public class ProductRequest {
 
     @Size(max = 20, message = "Compounding frequency must not exceed 20 characters")
     private String compoundingFrequency;
+
+    @DecimalMin(value = "0.0", message = "Premature penalty rate must be non-negative")
+    @DecimalMax(value = "1.0", message = "Premature penalty rate cannot exceed 100% of balance")
+    private BigDecimal prematurePenaltyRate;
+
+    @Min(value = 0, message = "Premature penalty grace days must be non-negative")
+    @Max(value = 365, message = "Premature penalty grace days cannot exceed 365")
+    private Integer prematurePenaltyGraceDays;
 }

@@ -4,10 +4,12 @@ import com.bt.accounts.client.*;
 import com.bt.accounts.dto.*;
 import com.bt.accounts.entity.FdAccount;
 import com.bt.accounts.entity.AccountTransaction;
+import com.bt.accounts.entity.CashCachedLedgerEntry;
 import com.bt.accounts.exception.*;
 import com.bt.accounts.event.*;
 import com.bt.accounts.repository.FdAccountRepository;
 import com.bt.accounts.repository.AccountTransactionRepository;
+import com.bt.accounts.time.TimeProvider;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -65,6 +67,12 @@ public class AccountService {
 
         String accountNo = accountNumberGenerator.generateAccountNumber(request.getBranchCode());
 
+        CashCachedLedgerEntry fundingEntry = fundAccountFromWallet(request.getCustomerId(), principalTokens,
+                accountNo);
+        log.info("Funded FD account {} from wallet. Ledger entry id={}, txHash={}", accountNo,
+                fundingEntry != null ? fundingEntry.getId() : null,
+                fundingEntry != null ? fundingEntry.getTransactionHash() : null);
+
         FdAccount account = FdAccount.builder()
                 .accountNo(accountNo)
                 .customerId(request.getCustomerId())
@@ -80,27 +88,26 @@ public class AccountService {
                 .branchCode(request.getBranchCode())
                 .status(FdAccount.AccountStatus.ACTIVE)
                 .createdBy(getCurrentUsername())
+                .prematurePenaltyRate(resolvePenaltyRate(product))
+                .prematurePenaltyGraceDays(resolvePenaltyGraceDays(product))
                 .build();
 
         FdAccount pricedAccount = applyInitialPricing(account, principalTokens, authToken);
         FdAccount savedAccount = accountRepository.save(pricedAccount);
 
         recordInitialDepositTransaction(savedAccount, principalTokens);
+        recordContractLedgerEntry(request.getCustomerId(), principalTokens, accountNo);
 
         log.info("Created FD account: {} for customer: {}", accountNo, request.getCustomerId());
 
-        AccountResponse response = AccountResponse.fromEntity(savedAccount);
-        response.setCurrentBalance(savedAccount.getPrincipalAmount());
-        return response;
+        return mapAccountResponse(savedAccount);
     }
 
     @Transactional(readOnly = true)
     public AccountResponse getAccount(String accountNo) {
         FdAccount account = accountRepository.findByAccountNo(accountNo)
                 .orElseThrow(() -> new AccountNotFoundException("Account not found: " + accountNo));
-        AccountResponse resp = AccountResponse.fromEntity(account);
-        resp.setCurrentBalance(computeCurrentBalance(accountNo));
-        return resp;
+        return mapAccountResponse(account);
     }
 
     @Transactional
@@ -154,15 +161,15 @@ public class AccountService {
         account.setTenureMonths(newTenureMonths);
         account.setPrincipalAmount(newPrincipalTokens);
         account.setMaturityAmount(calc.getMaturityAmount());
-        account.setMaturityDate(LocalDateTime.now().plusMonths(newTenureMonths));
+        account.setMaturityDate(TimeProvider.currentDateTime().plusMonths(newTenureMonths));
         account.setProductRefId(product.getId());
         account.setProductMaxTenureMonths(product.getMaxTermMonths());
+        account.setPrematurePenaltyRate(resolvePenaltyRate(product));
+        account.setPrematurePenaltyGraceDays(resolvePenaltyGraceDays(product));
 
         FdAccount saved = accountRepository.save(account);
-        AccountResponse resp = AccountResponse.fromEntity(saved);
-        resp.setCurrentBalance(computeCurrentBalance(accountNo));
         log.info("Upgraded FD account: {} by user: {}", accountNo, getCurrentUsername());
-        return resp;
+        return mapAccountResponse(saved);
     }
 
     @Transactional(readOnly = true)
@@ -170,11 +177,7 @@ public class AccountService {
     public List<AccountResponse> getCustomerAccounts(String customerId) {
         List<FdAccount> accounts = accountRepository.findAllByCustomerIdOrderByCreatedAtDesc(customerId);
         return accounts.stream()
-                .map(a -> {
-                    AccountResponse r = AccountResponse.fromEntity(a);
-                    r.setCurrentBalance(computeCurrentBalance(a.getAccountNo()));
-                    return r;
-                })
+                .map(this::mapAccountResponse)
                 .collect(Collectors.toList());
     }
 
@@ -205,11 +208,7 @@ public class AccountService {
         }
 
         List<AccountResponse> content = page.getContent().stream()
-                .map(a -> {
-                    AccountResponse r = AccountResponse.fromEntity(a);
-                    r.setCurrentBalance(computeCurrentBalance(a.getAccountNo()));
-                    return r;
-                })
+                .map(this::mapAccountResponse)
                 .collect(Collectors.toList());
 
         return PagedResponse.<AccountResponse>builder()
@@ -236,7 +235,7 @@ public class AccountService {
         }
 
         account.setStatus(FdAccount.AccountStatus.CLOSED);
-        account.setClosedAt(LocalDateTime.now());
+        account.setClosedAt(TimeProvider.currentDateTime());
         account.setClosedBy(getCurrentUsername());
         account.setClosureReason(request.getClosureReason());
 
@@ -263,10 +262,8 @@ public class AccountService {
         account.setClosureReason(null);
 
         FdAccount saved = accountRepository.save(account);
-        AccountResponse resp = AccountResponse.fromEntity(saved);
-        resp.setCurrentBalance(computeCurrentBalance(accountNo));
         log.info("Reopened FD account: {} by user: {}", accountNo, getCurrentUsername());
-        return resp;
+        return mapAccountResponse(saved);
     }
 
     private void validateUserRole() {
@@ -300,7 +297,7 @@ public class AccountService {
             if (evaluation.hasRule()) {
                 account.setActivePricingRuleId(evaluation.getRule().getId());
                 account.setActivePricingRuleName(evaluation.getRule().getRuleName());
-                account.setPricingRuleAppliedAt(LocalDateTime.now());
+                account.setPricingRuleAppliedAt(TimeProvider.currentDateTime());
             }
             if (evaluation.getAppliedRate() != null) {
                 account.setInterestRate(evaluation.getAppliedRate());
@@ -320,7 +317,7 @@ public class AccountService {
         CustomerValidationRequest request = CustomerValidationRequest.builder()
                 .customerId(Long.parseLong(customerId))
                 .requestId(requestId)
-                .timestamp(LocalDateTime.now())
+                .timestamp(TimeProvider.currentDateTime())
                 .build();
 
         log.info("Storing pending request with requestId: {}", requestId);
@@ -389,6 +386,8 @@ public class AccountService {
                     .maxInterestRate(response.getMaxInterestRate())
                     .currency(response.getCurrency())
                     .status(response.getStatus())
+                    .prematurePenaltyRate(response.getPrematurePenaltyRate())
+                    .prematurePenaltyGraceDays(response.getPrematurePenaltyGraceDays())
                     .build();
             return dto;
         } catch (InterruptedException e) {
@@ -496,6 +495,38 @@ public class AccountService {
         return txns.get(0).getBalanceAfter();
     }
 
+    private AccountResponse mapAccountResponse(FdAccount account) {
+        AccountResponse response = AccountResponse.fromEntity(account);
+        try {
+            response.setCurrentBalance(computeCurrentBalance(account.getAccountNo()));
+        } catch (Exception ex) {
+            log.warn("Unable to compute current balance for account {}: {}", account.getAccountNo(), ex.getMessage());
+            response.setCurrentBalance(account.getPrincipalAmount() != null ? account.getPrincipalAmount()
+                    : BigDecimal.ZERO);
+        }
+        return response;
+    }
+
+    private void recordContractLedgerEntry(String customerId, BigDecimal amount, String accountNo) {
+        try {
+            cashCachedService.recordContractLock(customerId, amount, "FD Contract - " + accountNo);
+        } catch (Exception ex) {
+            log.warn("Failed to record contract ledger entry for account {}: {}", accountNo, ex.getMessage());
+        }
+    }
+
+    private BigDecimal resolvePenaltyRate(ProductDto product) {
+        return product != null && product.getPrematurePenaltyRate() != null
+                ? product.getPrematurePenaltyRate()
+                : BigDecimal.ZERO;
+    }
+
+    private Integer resolvePenaltyGraceDays(ProductDto product) {
+        return product != null && product.getPrematurePenaltyGraceDays() != null
+                ? product.getPrematurePenaltyGraceDays()
+                : 0;
+    }
+
     @Transactional
     @CacheEvict(value = { "accounts", "customerAccounts" }, allEntries = true)
     public AccountResponse createAccountV1(AccountCreationV1Request request, String authToken) {
@@ -541,12 +572,15 @@ public class AccountService {
                 .branchCode(request.getBranchCode())
                 .status(FdAccount.AccountStatus.ACTIVE)
                 .createdBy(getCurrentUsername())
+                .prematurePenaltyRate(resolvePenaltyRate(product))
+                .prematurePenaltyGraceDays(resolvePenaltyGraceDays(product))
                 .build();
 
         FdAccount savedAccount = accountRepository.save(account);
+        recordContractLedgerEntry(request.getCustomerId(), principalTokens, accountNo);
         log.info("Created V1 FD account (product defaults): {} for customer: {}", accountNo, request.getCustomerId());
 
-        return AccountResponse.fromEntity(savedAccount);
+        return mapAccountResponse(savedAccount);
     }
 
     @Transactional
@@ -614,16 +648,19 @@ public class AccountService {
                 .branchCode(request.getBranchCode())
                 .status(FdAccount.AccountStatus.ACTIVE)
                 .createdBy(getCurrentUsername())
+                .prematurePenaltyRate(resolvePenaltyRate(product))
+                .prematurePenaltyGraceDays(resolvePenaltyGraceDays(product))
                 .build();
 
         FdAccount savedAccount = accountRepository.save(account);
 
         recordInitialDepositTransaction(savedAccount, principalTokens);
+        recordContractLedgerEntry(request.getCustomerId(), principalTokens, accountNo);
 
         log.info("Created V2 FD account (custom values): {} for customer: {} with rate: {}%, tenure: {} months",
                 accountNo, request.getCustomerId(), finalInterestRate, finalTenure);
 
-        return AccountResponse.fromEntity(savedAccount);
+        return mapAccountResponse(savedAccount);
     }
 
     private void recordInitialDepositTransaction(FdAccount account, BigDecimal principalTokens) {
@@ -638,7 +675,7 @@ public class AccountService {
                     .description("Initial deposit for account creation")
                     .referenceNo("ACCOUNT_CREATION")
                     .processedBy(getCurrentUsername())
-                    .transactionDate(LocalDateTime.now())
+                    .transactionDate(TimeProvider.currentDateTime())
                     .build();
             transactionRepository.save(transaction);
             log.info("Recorded initial deposit transaction: {} for account: {}", transactionId, account.getAccountNo());
@@ -646,4 +683,19 @@ public class AccountService {
             log.error("Failed to record initial deposit transaction for account: {}", account.getAccountNo(), e);
         }
     }
-}
+
+    private CashCachedLedgerEntry fundAccountFromWallet(String customerId, BigDecimal principalTokens,
+            String accountNo) {
+        try {
+            CashCachedRedeemRequest request = new CashCachedRedeemRequest();
+            request.setCustomerId(customerId);
+            request.setAmount(principalTokens);
+            request.setReference("FD Funding - " + accountNo);
+            return cashCachedService.redeem(request);
+        } catch (InvalidAccountDataException ex) {
+            throw ex;
+        } catch (RuntimeException ex) {
+            log.error("Wallet funding failed for account {}: {}", accountNo, ex.getMessage());
+            throw new ServiceIntegrationException("Unable to fund FD account from wallet", ex);
+        }
+    }

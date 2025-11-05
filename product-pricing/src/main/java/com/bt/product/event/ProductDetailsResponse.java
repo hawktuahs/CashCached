@@ -30,6 +30,8 @@ public class ProductDetailsResponse implements Serializable {
     private BigDecimal maxInterestRate;
     private String currency;
     private String compoundingFrequency;
+    private BigDecimal prematurePenaltyRate;
+    private Integer prematurePenaltyGraceDays;
     private String error;
     private LocalDateTime timestamp;
 }

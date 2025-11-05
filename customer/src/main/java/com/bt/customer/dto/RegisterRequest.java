@@ -20,6 +20,10 @@ public class RegisterRequest {
     @Schema(description = "User password (will be encrypted)", example = "SecurePass123!")
     private String password;
 
+    @Size(min = 3, max = 50, message = "Username must be between 3 and 50 characters")
+    @Schema(description = "Optional username. If omitted, it will be auto-generated")
+    private String username;
+
     @NotBlank(message = "Full name is required")
     @Size(max = 100, message = "Full name cannot exceed 100 characters")
     @Schema(description = "Full name of the user", example = "John Doe")

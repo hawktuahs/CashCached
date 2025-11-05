@@ -12,6 +12,7 @@ interface User {
   email: string;
   firstName: string;
   lastName: string;
+  username?: string;
   role: "CUSTOMER" | "BANKOFFICER" | "ADMIN";
   preferredCurrency?: string;
   address?: string;
@@ -40,6 +41,7 @@ interface AuthContextType {
 interface RegisterData {
   email: string;
   password: string;
+  username?: string;
   firstName: string;
   lastName: string;
   phoneNumber: string;
@@ -193,6 +195,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         password: userData.password,
         fullName: `${userData.firstName} ${userData.lastName}`,
         email: userData.email,
+        username: userData.username,
         phoneNumber: userData.phoneNumber,
         address: userData.address,
         dateOfBirth: userData.dateOfBirth,
@@ -222,6 +225,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         aadhaarNumber: userData.aadhaarNumber,
         panNumber: userData.panNumber,
         dateOfBirth: userData.dateOfBirth,
+        username: userData.username,
       });
     } catch {
       throw new Error("Registration failed");

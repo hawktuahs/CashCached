@@ -10,6 +10,7 @@ import com.bt.accounts.exception.InvalidAccountDataException;
 import com.bt.accounts.exception.ServiceIntegrationException;
 import com.bt.accounts.repository.AccountTransactionRepository;
 import com.bt.accounts.repository.FdAccountRepository;
+import com.bt.accounts.time.TimeProvider;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;
@@ -172,6 +173,8 @@ public class TransactionService {
                 .remarks(request.getRemarks())
                 .build();
 
+        reconcileWalletForTransaction(account, type, amountTokens, request.getReferenceNo());
+
         AccountTransaction saved = transactionRepository.save(transaction);
         applyPenaltyIfNeeded(account, pricing.getPenalty(), request.getReferenceNo());
         return TransactionResponse.fromEntity(saved);
@@ -251,7 +254,7 @@ public class TransactionService {
         if (hasRule) {
             account.setActivePricingRuleId(result.getRule().getId());
             account.setActivePricingRuleName(result.getRule().getRuleName());
-            account.setPricingRuleAppliedAt(LocalDateTime.now());
+            account.setPricingRuleAppliedAt(TimeProvider.currentDateTime());
         } else {
             account.setActivePricingRuleId(null);
             account.setActivePricingRuleName(null);
@@ -273,7 +276,7 @@ public class TransactionService {
                 .transactionId(txnId)
                 .accountNo(accountNo)
                 .transactionType(AccountTransaction.TransactionType.PENALTY_DEBIT)
-                .amount(penalty)
+                .amount(penalty.negate())
                 .balanceAfter(calculateNewBalance(calculateCurrentBalance(accountNo),
                         AccountTransaction.TransactionType.PENALTY_DEBIT, penalty))
                 .description("Pricing rule penalty")
@@ -320,15 +323,9 @@ public class TransactionService {
         if (AccountTransaction.TransactionType.DEPOSIT == type) {
             cashCachedService.debitWallet(customerId, amountTokens, "Deposit to account " + txnReference);
         } else if (AccountTransaction.TransactionType.WITHDRAWAL == type
-                || AccountTransaction.TransactionType.PENALTY_DEBIT == type
-                || AccountTransaction.TransactionType.PREMATURE_CLOSURE == type) {
+                || AccountTransaction.TransactionType.PREMATURE_CLOSURE == type
+                || AccountTransaction.TransactionType.MATURITY_PAYOUT == type) {
             cashCachedService.creditWallet(customerId, amountTokens, "Withdrawal from account " + txnReference);
-        } else if (AccountTransaction.TransactionType.MATURITY_PAYOUT == type) {
-            CashCachedIssueRequest request = new CashCachedIssueRequest();
-            request.setCustomerId(customerId);
-            request.setAmount(amountTokens);
-            request.setReference("Maturity payout " + txnReference);
-            cashCachedService.issue(request);
         }
     }
 

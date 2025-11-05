@@ -53,6 +53,8 @@ public class KafkaConsumerService {
                     .maxInterestRate(product.getMaxInterestRate())
                     .currency(product.getCurrency() != null ? product.getCurrency().toString() : "USD")
                     .compoundingFrequency(product.getCompoundingFrequency())
+                    .prematurePenaltyRate(product.getPrematurePenaltyRate())
+                    .prematurePenaltyGraceDays(product.getPrematurePenaltyGraceDays())
                     .timestamp(LocalDateTime.now())
                     .build();
 

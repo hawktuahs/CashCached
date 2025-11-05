@@ -74,21 +74,22 @@ public class CashCachedService {
     }
 
     @Transactional
+    public CashCachedLedgerEntry recordContractLock(String customerId, BigDecimal amount, String reference) {
+        BigDecimal tokens = requireWholeTokens(amount);
+        CashCachedWallet wallet = ensureWallet(customerId);
+        return ledgerRepository.save(CashCachedLedgerEntry.builder()
+                .customerId(customerId)
+                .changeAmount(BigDecimal.ZERO)
+                .balanceAfter(wallet.getBalance())
+                .operation(Operation.CONTRACT)
+                .reference(reference + " (" + tokens + " tokens)")
+                .build());
+    }
+
+    @Transactional
     public void mintForInterest(BigDecimal amount, String reference) {
         BigDecimal tokens = requireWholeTokens(amount);
-        TransactionReceiptHolder receipt = mintToTreasury(tokens);
-        String treasuryId = properties.getTreasuryAddress();
-        CashCachedWallet treasuryWallet = ensureWallet(treasuryId);
-        treasuryWallet.setBalance(treasuryWallet.getBalance().add(tokens));
-        walletRepository.save(treasuryWallet);
-        ledgerRepository.save(CashCachedLedgerEntry.builder()
-                .customerId(treasuryId)
-                .changeAmount(tokens)
-                .balanceAfter(treasuryWallet.getBalance())
-                .operation(Operation.ISSUE)
-                .transactionHash(receipt.transactionHash())
-                .reference(reference)
-                .build());
+        recordTreasuryIssuance(tokens, reference);
     }
 
     @Transactional
@@ -259,6 +260,22 @@ public class CashCachedService {
         } catch (Exception e) {
             throw new IllegalStateException("Failed to mint CashCached", e);
         }
+    }
+
+    private void recordTreasuryIssuance(BigDecimal tokens, String reference) {
+        TransactionReceiptHolder receipt = mintToTreasury(tokens);
+        String treasuryId = properties.getTreasuryAddress();
+        CashCachedWallet treasuryWallet = ensureWallet(treasuryId);
+        treasuryWallet.setBalance(treasuryWallet.getBalance().add(tokens));
+        walletRepository.save(treasuryWallet);
+        ledgerRepository.save(CashCachedLedgerEntry.builder()
+                .customerId(treasuryId)
+                .changeAmount(tokens)
+                .balanceAfter(treasuryWallet.getBalance())
+                .operation(Operation.ISSUE)
+                .transactionHash(receipt.transactionHash())
+                .reference(reference)
+                .build());
     }
 
     private TransactionReceiptHolder burnFromTreasury(BigDecimal amount) {

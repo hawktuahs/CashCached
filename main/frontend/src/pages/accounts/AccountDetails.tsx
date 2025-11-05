@@ -51,7 +51,7 @@ interface Account {
 
 interface Transaction {
   id: string;
-  type: "DEPOSIT" | "WITHDRAWAL" | "INTEREST" | "MATURITY";
+  type: "DEPOSIT" | "WITHDRAWAL" | "INTEREST" | "MATURITY" | "PENALTY";
   tokens: number;
   convertedDisplay: string;
   description: string;
@@ -200,6 +200,7 @@ export function AccountDetails() {
             if (v === "WITHDRAWAL") return "WITHDRAWAL";
             if (v === "INTEREST_CREDIT" || v === "INTEREST") return "INTEREST";
             if (v === "MATURITY_PAYOUT" || v === "MATURITY") return "MATURITY";
+            if (v === "PENALTY_DEBIT" || v === "PENALTY") return "PENALTY";
             return "DEPOSIT";
           })(),
           tokens,
@@ -250,6 +251,7 @@ export function AccountDetails() {
       case "INTEREST":
         return "text-green-600";
       case "WITHDRAWAL":
+      case "PENALTY":
         return "text-red-600";
       case "MATURITY":
         return "text-blue-600";
@@ -268,6 +270,8 @@ export function AccountDetails() {
         return "💰";
       case "MATURITY":
         return "🎯";
+      case "PENALTY":
+        return "⚠";
       default:
         return "📄";
     }
@@ -733,10 +737,13 @@ export function AccountDetails() {
                             transaction.type
                           )}`}
                         >
-                          {transaction.type === "WITHDRAWAL" ? "-" : "+"}
-                          {transaction.tokens.toLocaleString(undefined, {
-                            maximumFractionDigits: 0,
-                          })}{" "}
+                          {transaction.tokens >= 0 ? "+" : "-"}
+                          {Math.abs(transaction.tokens).toLocaleString(
+                            undefined,
+                            {
+                              maximumFractionDigits: 0,
+                            }
+                          )}{" "}
                           CCHD
                         </p>
                         <p className="text-sm text-muted-foreground">

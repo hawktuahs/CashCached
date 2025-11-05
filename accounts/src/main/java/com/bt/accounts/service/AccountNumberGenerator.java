@@ -32,11 +32,18 @@ public class AccountNumberGenerator {
     private String accountPrefix;
 
     public synchronized String generateAccountNumber(String branchCode) {
-        if (ibanEnabled) {
-            return generateIBAN(branchCode);
-        } else {
-            return generateLegacyAccountNumber(branchCode);
+        int attempts = 0;
+        while (attempts < 25) {
+            String candidate = ibanEnabled ? generateIBAN(branchCode) : generateLegacyAccountNumber(branchCode);
+            if (!accountRepository.existsByAccountNo(candidate)) {
+                return candidate;
+            }
+            attempts++;
+            log.warn("Generated duplicate account number {} for branch {}. Retrying (attempt {})", candidate,
+                    branchCode, attempts);
         }
+        throw new IllegalStateException("Unable to generate unique account number after multiple attempts for branch "
+                + branchCode);
     }
 
     public String generateIBAN(String branchCode) {

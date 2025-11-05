@@ -26,6 +26,7 @@ public class RedemptionEnquiryResponse {
     private Integer daysOverdue;
 
     private BigDecimal accruedInterest;
+    private BigDecimal currentBalance;
     private BigDecimal maturityAmount;
     private BigDecimal penaltyAmount;
     private BigDecimal netPayableAmount;

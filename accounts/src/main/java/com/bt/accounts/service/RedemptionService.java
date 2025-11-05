@@ -3,14 +3,12 @@ package com.bt.accounts.service;
 import com.bt.accounts.dto.*;
 import com.bt.accounts.entity.AccountTransaction;
 import com.bt.accounts.entity.CashCachedLedgerEntry;
-import com.bt.accounts.entity.CashCachedWallet;
 import com.bt.accounts.entity.FdAccount;
 import com.bt.accounts.event.AccountRedemptionEvent;
 import com.bt.accounts.exception.AccountNotFoundException;
 import com.bt.accounts.exception.InvalidAccountDataException;
 import com.bt.accounts.exception.ServiceIntegrationException;
 import com.bt.accounts.repository.AccountTransactionRepository;
-import com.bt.accounts.repository.CashCachedWalletRepository;
 import com.bt.accounts.repository.FdAccountRepository;
 import com.bt.accounts.time.TimeProvider;
 import lombok.RequiredArgsConstructor;
@@ -37,18 +35,15 @@ public class RedemptionService {
 
     private final FdAccountRepository accountRepository;
     private final AccountTransactionRepository transactionRepository;
-    private final CashCachedWalletRepository walletRepository;
     private final CashCachedService cashCachedService;
     private final KafkaTemplate<String, Object> kafkaTemplate;
     private final TimeProvider timeProvider;
 
     private static final String REDEMPTION_TYPE_MATURITY = "MATURITY";
     private static final String REDEMPTION_TYPE_PREMATURE = "PREMATURE";
-    private static final BigDecimal PREMATURE_PENALTY_RATE = new BigDecimal("0.02");
-    private static final int PREMATURE_PENALTY_DAYS = 30;
 
     @Cacheable(value = "redemptionEnquiry", key = "#accountNo")
-    public RedemptionEnquiryResponse getRedemptionEnquiry(String accountNo) {
+    public RedemptionEnquiryResponse getRedemptionEnquiry(String accountNo, String authToken) {
         FdAccount account = accountRepository.findByAccountNo(accountNo)
                 .orElseThrow(() -> new AccountNotFoundException("Account not found: " + accountNo));
 
@@ -63,27 +58,30 @@ public class RedemptionService {
         long daysUntilMaturity = isMatured ? 0 : ChronoUnit.DAYS.between(now, maturityDate);
         long daysOverdue = isMatured ? ChronoUnit.DAYS.between(maturityDate, now) : 0;
 
-        BigDecimal accruedInterest = calculateAccruedInterest(account, now);
+        BigDecimal ledgerBalance = resolveLedgerBalance(accountNo);
+        BigDecimal principalOriginal = account.getPrincipalAmount() != null ? account.getPrincipalAmount()
+                : BigDecimal.ZERO;
+        BigDecimal accruedInterest = ledgerBalance.subtract(principalOriginal);
+        if (accruedInterest.compareTo(BigDecimal.ZERO) < 0) {
+            accruedInterest = BigDecimal.ZERO;
+        }
         BigDecimal penaltyAmount = BigDecimal.ZERO;
         String penaltyReason = null;
         String redemptionEligibility = "ELIGIBLE";
         List<String> warnings = new ArrayList<>();
 
         if (!isMatured) {
-            penaltyAmount = calculatePrematurePenalty(account, daysUntilMaturity);
+            penaltyAmount = calculatePrematurePenalty(account, ledgerBalance, daysUntilMaturity);
             penaltyReason = "Premature redemption penalty (" + daysUntilMaturity + " days before maturity)";
             warnings.add("Account has not reached maturity date");
             warnings.add("Penalty of " + penaltyAmount + " tokens will be deducted");
             redemptionEligibility = "ELIGIBLE_WITH_PENALTY";
         }
 
-        BigDecimal netPayableAmount = account.getPrincipalAmount()
-                .add(accruedInterest)
-                .subtract(penaltyAmount);
+        BigDecimal netPayableAmount = ledgerBalance.subtract(penaltyAmount);
 
-        CashCachedWallet wallet = walletRepository.findByCustomerId(account.getCustomerId())
-                .orElse(null);
-        BigDecimal currentWalletBalance = wallet != null ? wallet.getBalance() : BigDecimal.ZERO;
+        String bearerToken = (authToken != null && !authToken.isBlank()) ? authToken : null;
+        BigDecimal currentWalletBalance = cashCachedService.balance(account.getCustomerId(), bearerToken).getBalance();
         boolean hasSufficientBalance = true;
 
         if (daysOverdue > 30) {
@@ -94,7 +92,7 @@ public class RedemptionService {
                 .accountNo(accountNo)
                 .customerId(account.getCustomerId())
                 .productCode(account.getProductCode())
-                .principalAmount(account.getPrincipalAmount())
+                .principalAmount(ledgerBalance)
                 .interestRate(account.getInterestRate())
                 .tenureMonths(account.getTenureMonths())
                 .maturityDate(maturityDate)
@@ -103,6 +101,7 @@ public class RedemptionService {
                 .daysUntilMaturity(isMatured ? null : (int) daysUntilMaturity)
                 .daysOverdue(isMatured ? (int) daysOverdue : null)
                 .accruedInterest(accruedInterest)
+                .currentBalance(ledgerBalance)
                 .maturityAmount(account.getMaturityAmount())
                 .penaltyAmount(penaltyAmount)
                 .netPayableAmount(netPayableAmount)
@@ -116,7 +115,7 @@ public class RedemptionService {
 
     @Transactional
     @CacheEvict(value = { "accounts", "customerAccounts", "redemptionEnquiry" }, allEntries = true)
-    public RedemptionResponse processRedemption(String accountNo, RedemptionRequest request) {
+    public RedemptionResponse processRedemption(String accountNo, RedemptionRequest request, String authToken) {
         FdAccount account = accountRepository.findByAccountNo(accountNo)
                 .orElseThrow(() -> new AccountNotFoundException("Account not found: " + accountNo));
 
@@ -131,11 +130,15 @@ public class RedemptionService {
 
         String redemptionType = isMatured ? REDEMPTION_TYPE_MATURITY : REDEMPTION_TYPE_PREMATURE;
 
-        BigDecimal accruedInterest = calculateAccruedInterest(account, now);
-        BigDecimal penaltyAmount = isMatured ? BigDecimal.ZERO : calculatePrematurePenalty(account, daysUntilMaturity);
-        BigDecimal netPayoutAmount = account.getPrincipalAmount()
-                .add(accruedInterest)
-                .subtract(penaltyAmount);
+        BigDecimal ledgerBalance = resolveLedgerBalance(accountNo);
+        BigDecimal principalOriginal = account.getPrincipalAmount() != null ? account.getPrincipalAmount()
+                : BigDecimal.ZERO;
+        BigDecimal accruedInterest = ledgerBalance.subtract(principalOriginal);
+        if (accruedInterest.compareTo(BigDecimal.ZERO) < 0) {
+            accruedInterest = BigDecimal.ZERO;
+        }
+        BigDecimal penaltyAmount = isMatured ? BigDecimal.ZERO : calculatePrematurePenalty(account, ledgerBalance, daysUntilMaturity);
+        BigDecimal netPayoutAmount = ledgerBalance.subtract(penaltyAmount);
 
         String transactionId = UUID.randomUUID().toString();
         String beneficiaryCustomerId = account.getCustomerId();
@@ -145,19 +148,15 @@ public class RedemptionService {
         BigDecimal newWalletBalance;
 
         try {
-            CashCachedRedeemRequest redeemRequest = new CashCachedRedeemRequest();
-            redeemRequest.setCustomerId(beneficiaryCustomerId);
-            redeemRequest.setAmount(netPayoutAmount);
-            redeemRequest.setReference("FD Redemption - " + accountNo + " - " + redemptionType);
+            CashCachedIssueRequest issueRequest = new CashCachedIssueRequest();
+            issueRequest.setCustomerId(beneficiaryCustomerId);
+            issueRequest.setAmount(netPayoutAmount);
+            issueRequest.setReference("FD Redemption - " + accountNo + " - " + redemptionType);
 
-            CashCachedLedgerEntry ledgerEntry = cashCachedService.redeem(redeemRequest);
+            CashCachedLedgerEntry ledgerEntry = cashCachedService.issue(issueRequest);
             blockchainTxHash = ledgerEntry.getTransactionHash();
-
-            CashCachedWallet wallet = walletRepository.findByCustomerId(beneficiaryCustomerId)
-                    .orElseThrow(() -> new ServiceIntegrationException(
-                            "Wallet not found for customer: " + beneficiaryCustomerId));
-            walletAddress = wallet.getCustomerId();
-            newWalletBalance = wallet.getBalance();
+            walletAddress = issueRequest.getCustomerId();
+            newWalletBalance = ledgerEntry.getBalanceAfter();
 
             log.info("Blockchain redemption successful. TxHash: {}, Amount: {}", blockchainTxHash, netPayoutAmount);
 
@@ -174,7 +173,7 @@ public class RedemptionService {
                 account,
                 transactionId,
                 transactionType,
-                account.getPrincipalAmount(),
+                ledgerBalance,
                 accruedInterest,
                 penaltyAmount,
                 netPayoutAmount,
@@ -186,6 +185,9 @@ public class RedemptionService {
         account.setClosedBy(getCurrentUsername());
         account.setClosureReason(redemptionType + " redemption");
         account.setUpdatedAt(now);
+        account.setPrincipalAmount(BigDecimal.ZERO);
+        account.setMaturityAmount(BigDecimal.ZERO);
+        account.setTotalInterestAccrued(BigDecimal.ZERO);
         accountRepository.save(account);
 
         publishRedemptionEvent(account, redemptionType, transactionId, blockchainTxHash,
@@ -200,7 +202,7 @@ public class RedemptionService {
                 .redemptionType(redemptionType)
                 .transactionId(transactionId)
                 .redemptionDate(now)
-                .principalAmount(account.getPrincipalAmount())
+                .principalAmount(ledgerBalance)
                 .interestAmount(accruedInterest)
                 .penaltyAmount(penaltyAmount)
                 .netPayoutAmount(netPayoutAmount)
@@ -210,6 +212,18 @@ public class RedemptionService {
                 .status("SUCCESS")
                 .message("Account redeemed successfully")
                 .build();
+    }
+
+    private BigDecimal resolveLedgerBalance(String accountNo) {
+        List<AccountTransaction> transactions = transactionRepository
+                .findByAccountNoOrderByTransactionDateDesc(accountNo);
+        if (transactions == null || transactions.isEmpty()) {
+            FdAccount account = accountRepository.findByAccountNo(accountNo)
+                    .orElseThrow(() -> new AccountNotFoundException("Account not found: " + accountNo));
+            BigDecimal principal = account.getPrincipalAmount();
+            return principal != null ? principal : BigDecimal.ZERO;
+        }
+        return transactions.get(0).getBalanceAfter();
     }
 
     private BigDecimal calculateAccruedInterest(FdAccount account, LocalDateTime currentDate) {
@@ -230,21 +244,44 @@ public class RedemptionService {
         return accruedInterest.setScale(0, RoundingMode.HALF_UP);
     }
 
-    private BigDecimal calculatePrematurePenalty(FdAccount account, long daysUntilMaturity) {
+    private BigDecimal calculatePrematurePenalty(FdAccount account, BigDecimal balanceBase, long daysUntilMaturity) {
         if (daysUntilMaturity <= 0) {
             return BigDecimal.ZERO;
         }
 
-        BigDecimal penaltyBase = account.getPrincipalAmount();
+        BigDecimal penaltyBase = balanceBase != null ? balanceBase : BigDecimal.ZERO;
+        BigDecimal penaltyRate = resolvePenaltyRate(account);
+        int graceDays = resolvePenaltyGraceDays(account);
 
-        if (daysUntilMaturity < PREMATURE_PENALTY_DAYS) {
-            BigDecimal proportionalRate = PREMATURE_PENALTY_RATE
-                    .multiply(BigDecimal.valueOf(daysUntilMaturity))
-                    .divide(BigDecimal.valueOf(PREMATURE_PENALTY_DAYS), 10, RoundingMode.HALF_UP);
+        if (penaltyRate.compareTo(BigDecimal.ZERO) <= 0) {
+            return BigDecimal.ZERO;
+        }
+
+        if (daysUntilMaturity <= graceDays) {
+            return BigDecimal.ZERO;
+        }
+
+        long chargeableDays = daysUntilMaturity - graceDays;
+        BigDecimal fullWindow = BigDecimal.valueOf(Math.max(1, graceDays > 0 ? graceDays : 30));
+
+        if (chargeableDays < fullWindow.longValue()) {
+            BigDecimal proportionalRate = penaltyRate
+                    .multiply(BigDecimal.valueOf(chargeableDays))
+                    .divide(fullWindow, 10, RoundingMode.HALF_UP);
             return penaltyBase.multiply(proportionalRate).setScale(0, RoundingMode.HALF_UP);
         }
 
-        return penaltyBase.multiply(PREMATURE_PENALTY_RATE).setScale(0, RoundingMode.HALF_UP);
+        return penaltyBase.multiply(penaltyRate).setScale(0, RoundingMode.HALF_UP);
+    }
+
+    private BigDecimal resolvePenaltyRate(FdAccount account) {
+        BigDecimal configured = account.getPrematurePenaltyRate();
+        return configured != null ? configured : BigDecimal.ZERO;
+    }
+
+    private int resolvePenaltyGraceDays(FdAccount account) {
+        Integer configured = account.getPrematurePenaltyGraceDays();
+        return configured != null ? configured : 0;
     }
 
     private void recordRedemptionTransaction(
@@ -301,8 +338,6 @@ public class RedemptionService {
             String reason) {
 
         try {
-            CashCachedWallet wallet = walletRepository.findByCustomerId(account.getCustomerId()).orElse(null);
-
             AccountRedemptionEvent event = AccountRedemptionEvent.builder()
                     .eventId(UUID.randomUUID().toString())
                     .eventType("ACCOUNT_REDEEMED")
@@ -317,7 +352,7 @@ public class RedemptionService {
                     .netPayoutAmount(netPayoutAmount)
                     .transactionId(transactionId)
                     .blockchainTransactionHash(blockchainTxHash)
-                    .walletAddress(wallet != null ? wallet.getCustomerId() : null)
+                    .walletAddress(account.getCustomerId())
                     .maturityDate(account.getMaturityDate())
                     .daysBeforeMaturity(redemptionType.equals(REDEMPTION_TYPE_PREMATURE) ? (int) daysUntilMaturity : 0)
                     .reason(reason)

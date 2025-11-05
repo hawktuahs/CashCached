@@ -47,6 +47,8 @@ interface Product {
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
+  prematurePenaltyRate: number;
+  prematurePenaltyGraceDays: number;
 }
 
 export function ProductList() {
@@ -94,6 +96,8 @@ export function ProductList() {
           isActive: String(p.status ?? "ACTIVE") === "ACTIVE",
           createdAt: String(p.createdAt ?? new Date().toISOString()),
           updatedAt: String(p.updatedAt ?? new Date().toISOString()),
+          prematurePenaltyRate: Number(p.prematurePenaltyRate ?? 0),
+          prematurePenaltyGraceDays: Number(p.prematurePenaltyGraceDays ?? 0),
         }));
         setProducts(mapped);
       } catch (error) {
@@ -401,6 +405,27 @@ export function ProductList() {
                     {formatCurrency(product.minAmount)} -{" "}
                     {formatCurrency(product.maxAmount)}
                   </p>
+                </div>
+
+                <div className="grid gap-2 rounded-lg border p-3 bg-muted/30">
+                  <div className="text-sm font-semibold">
+                    {t("products.penalties.prematureTitle") ||
+                      "Premature Redemption Penalty"}
+                  </div>
+                  <div className="flex items-center justify-between text-sm text-muted-foreground">
+                    <span>{t("products.penalties.rate") || "Rate"}</span>
+                    <span className="font-medium text-destructive">
+                      {(product.prematurePenaltyRate * 100).toFixed(2)}%
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm text-muted-foreground">
+                    <span>
+                      {t("products.penalties.graceDays") || "Grace Days"}
+                    </span>
+                    <span className="font-medium">
+                      {product.prematurePenaltyGraceDays}
+                    </span>
+                  </div>
                 </div>
 
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">

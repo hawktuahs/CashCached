@@ -2,8 +2,11 @@ package com.bt.accounts.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+
+import com.bt.accounts.time.TimeProvider;
 
 @Entity
 @Table(name = "account_transactions", indexes = {
@@ -56,7 +59,7 @@ public class AccountTransaction {
     @PrePersist
     protected void onCreate() {
         if (transactionDate == null) {
-            transactionDate = LocalDateTime.now();
+            transactionDate = TimeProvider.currentDateTime();
         }
     }
 

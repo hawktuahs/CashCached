@@ -19,6 +19,7 @@ import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 import jakarta.servlet.http.HttpServletRequest;
@@ -29,11 +30,17 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ThreadLocalRandom;
 
 @Service
 @Slf4j
 public class AuthService {
+
+    private static final int USERNAME_MIN_LENGTH = 3;
+    private static final int USERNAME_MAX_LENGTH = 50;
+    private static final int BASE_USERNAME_MAX_LENGTH = 32;
 
     @Autowired
     private UserRepository userRepository;
@@ -83,6 +90,8 @@ public class AuthService {
 
     @Transactional
     public AuthResponse register(RegisterRequest request) {
+        String normalizedUsername = resolveUsername(request);
+
         if (userRepository.existsByEmail(request.getEmail())) {
             throw new UserAlreadyExistsException("Email already registered: " + request.getEmail());
         }
@@ -90,6 +99,7 @@ public class AuthService {
         User.CustomerClassification classification = computeClassification(request.getDateOfBirth());
 
         User user = User.builder()
+                .username(normalizedUsername)
                 .password(passwordEncoder.encode(request.getPassword()))
                 .fullName(request.getFullName())
                 .email(request.getEmail())
@@ -104,15 +114,16 @@ public class AuthService {
                 .active(true)
                 .build();
 
-        userRepository.save(user);
+        User savedUser = userRepository.save(user);
 
-        String sessionId = redisSessionService.createSession(user);
-        recordLogin(user.getEmail(), "REGISTRATION");
+        String sessionId = redisSessionService.createSession(savedUser);
+        recordLogin(savedUser.getEmail(), "REGISTRATION");
 
         return new AuthResponse(
                 sessionId,
-                user.getEmail(),
-                user.getRole().name(),
+                savedUser.getUsername(),
+                savedUser.getEmail(),
+                savedUser.getRole().name(),
                 "User registered successfully");
     }
 
@@ -146,14 +157,16 @@ public class AuthService {
                         log.warn("Failed to send OTP email to {}", user.getEmail());
                     }
                 }
-                AuthResponse resp = new AuthResponse(null, user.getEmail(), user.getRole().name(), "OTP required");
+                AuthResponse resp = new AuthResponse(null, user.getUsername(), user.getEmail(),
+                        user.getRole().name(), "OTP required");
                 resp.setTwoFactorRequired(true);
                 return resp;
             }
 
             String sessionId = redisSessionService.createSession(user);
             recordLogin(user.getEmail(), "PASSWORD");
-            return new AuthResponse(sessionId, user.getEmail(), user.getRole().name(), "Authentication successful");
+            return new AuthResponse(sessionId, user.getUsername(), user.getEmail(), user.getRole().name(),
+                    "Authentication successful");
         } catch (InvalidCredentialsException e) {
             throw e;
         } catch (Exception e) {
@@ -171,7 +184,8 @@ public class AuthService {
 
         String sessionId = redisSessionService.createSession(user);
         recordLogin(user.getEmail(), "OTP");
-        return new AuthResponse(sessionId, user.getEmail(), user.getRole().name(), "Authentication successful");
+        return new AuthResponse(sessionId, user.getUsername(), user.getEmail(), user.getRole().name(),
+                "Authentication successful");
     }
 
     private boolean customerServiceIsTwoFactorEnabled(String email) {
@@ -185,6 +199,96 @@ public class AuthService {
     private String generateOtp() {
         int n = new Random().nextInt(900000) + 100000;
         return Integer.toString(n);
+    }
+
+    private String resolveUsername(RegisterRequest request) {
+        String provided = request.getUsername();
+        if (StringUtils.hasText(provided)) {
+            String trimmed = provided.trim();
+            if (trimmed.length() < USERNAME_MIN_LENGTH || trimmed.length() > USERNAME_MAX_LENGTH) {
+                throw new IllegalArgumentException("Username must be between " + USERNAME_MIN_LENGTH + " and "
+                        + USERNAME_MAX_LENGTH + " characters");
+            }
+            if (userRepository.existsByUsername(trimmed)) {
+                throw new UserAlreadyExistsException("Username already registered: " + trimmed);
+            }
+            return trimmed;
+        }
+        return generateUniqueUsername(request);
+    }
+
+    private String generateUniqueUsername(RegisterRequest request) {
+        String base = deriveBaseUsername(request);
+        String candidate = base;
+        for (int attempt = 0; attempt < 10; attempt++) {
+            if (attempt > 0) {
+                String suffix = randomNumericSuffix();
+                int maxBaseLength = USERNAME_MAX_LENGTH - suffix.length();
+                String truncatedBase = base.length() > maxBaseLength ? base.substring(0, maxBaseLength) : base;
+                candidate = truncatedBase + suffix;
+            }
+
+            candidate = ensureMinLength(candidate);
+            if (!userRepository.existsByUsername(candidate)) {
+                return candidate;
+            }
+        }
+
+        String fallback = ("user" + System.currentTimeMillis()).toLowerCase(Locale.ROOT);
+        fallback = fallback.length() > USERNAME_MAX_LENGTH ? fallback.substring(0, USERNAME_MAX_LENGTH) : fallback;
+        return fallback;
+    }
+
+    private String deriveBaseUsername(RegisterRequest request) {
+        String fullName = request.getFullName();
+        if (StringUtils.hasText(fullName)) {
+            String sanitized = fullName.trim().toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", "");
+            if (sanitized.length() >= USERNAME_MIN_LENGTH) {
+                return limitLength(sanitized);
+            }
+        }
+
+        String email = request.getEmail();
+        if (StringUtils.hasText(email) && email.contains("@")) {
+            String localPart = email.substring(0, email.indexOf('@')).toLowerCase(Locale.ROOT)
+                    .replaceAll("[^a-z0-9]", "");
+            if (localPart.length() >= USERNAME_MIN_LENGTH) {
+                return limitLength(localPart);
+            }
+        }
+
+        String phone = request.getPhoneNumber();
+        if (StringUtils.hasText(phone)) {
+            String digits = phone.replaceAll("[^0-9]", "");
+            if (digits.length() >= USERNAME_MIN_LENGTH) {
+                return limitLength(digits);
+            }
+        }
+
+        return "user";
+    }
+
+    private String ensureMinLength(String candidate) {
+        if (candidate.length() >= USERNAME_MIN_LENGTH) {
+            return candidate;
+        }
+        StringBuilder builder = new StringBuilder(candidate);
+        while (builder.length() < USERNAME_MIN_LENGTH) {
+            builder.append(ThreadLocalRandom.current().nextInt(0, 10));
+        }
+        String result = builder.toString();
+        return result.length() > USERNAME_MAX_LENGTH ? result.substring(0, USERNAME_MAX_LENGTH) : result;
+    }
+
+    private String limitLength(String value) {
+        if (value.length() > BASE_USERNAME_MAX_LENGTH) {
+            return value.substring(0, BASE_USERNAME_MAX_LENGTH);
+        }
+        return value;
+    }
+
+    private String randomNumericSuffix() {
+        return String.format("%04d", ThreadLocalRandom.current().nextInt(0, 10000));
     }
 
     private void sendOtpEmail(String to, String code) {
