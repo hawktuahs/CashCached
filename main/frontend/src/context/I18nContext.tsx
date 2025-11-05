@@ -73,6 +73,10 @@ const dict: Dict = {
   },
   "accounts.card.account": { en: "Account", ja: "口座番号" },
   "accounts.card.currentBalance": { en: "Current Balance", ja: "現在残高" },
+  "accounts.card.accruedInterest": {
+    en: "Accrued Interest",
+    ja: "発生利息",
+  },
   "accounts.card.interestRate": { en: "Interest Rate", ja: "金利" },
   "accounts.card.principal": { en: "Principal Amount", ja: "元本" },
   "accounts.card.maturityDate": { en: "Maturity Date", ja: "満期日" },
@@ -152,6 +156,10 @@ const dict: Dict = {
   "calculator.yearly": { en: "Yearly", ja: "毎年" },
   "calculator.calculate": { en: "Calculate", ja: "計算する" },
   "calculator.results": { en: "Results", ja: "結果" },
+  "calculator.section.result.interest": {
+    en: "Interest Earned",
+    ja: "獲得利息",
+  },
   "calculator.result.principal": {
     en: `Principal (${TOKEN_SYMBOL})`,
     ja: `元本 (${TOKEN_SYMBOL})`,
@@ -293,6 +301,22 @@ const dict: Dict = {
   "products.toast.loadFailed": {
     en: "Failed to load products",
     ja: "商品の読み込みに失敗しました",
+  },
+  "products.penalties.prematureTitle": {
+    en: "Premature Redemption Penalty",
+    ja: "途中解約ペナルティ",
+  },
+  "products.penalties.rate": {
+    en: "Penalty Rate",
+    ja: "ペナルティ率",
+  },
+  "products.penalties.graceDays": {
+    en: "Grace Period (days)",
+    ja: "猶予期間（日数）",
+  },
+  "products.penalties.graceHint": {
+    en: "Days after opening before penalties apply",
+    ja: "開設後ペナルティが発生するまでの日数",
   },
   "dashboard.title": { en: "Dashboard", ja: "ダッシュボード" },
   "dashboard.greeting.morning": {

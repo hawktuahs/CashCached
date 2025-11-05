@@ -40,7 +40,8 @@ interface Account {
   id: string;
   accountNumber: string;
   accountType: string;
-  balance: number;
+  currentBalance: number;
+  accruedInterest: number;
   interestRate: number;
   maturityDate: string;
   status: "ACTIVE" | "MATURED" | "CLOSED";
@@ -85,7 +86,7 @@ export function AccountsList() {
         a.accountType,
         a.status,
         String(a.principalAmount),
-        String(a.balance),
+        String(a.currentBalance),
         String(a.interestRate),
         new Date(a.createdAt).toISOString(),
         new Date(a.maturityDate).toISOString(),
@@ -120,9 +121,8 @@ export function AccountsList() {
           id: String(a.id ?? ""),
           accountNumber: String(a.accountNo ?? a.accountNumber ?? ""),
           accountType: "FIXED_DEPOSIT",
-          balance: Number(
-            a.currentBalance ?? a.balance ?? a.maturityAmount ?? 0
-          ),
+          currentBalance: Number(a.currentBalance ?? a.balance ?? 0),
+          accruedInterest: Number(a.accruedInterest ?? 0),
           interestRate: Number(a.interestRate ?? 0),
           maturityDate: String(a.maturityDate ?? new Date().toISOString()),
           status: String(a.status ?? "ACTIVE") as any,
@@ -436,10 +436,10 @@ export function AccountsList() {
                       {t("accounts.card.currentBalance")}
                     </div>
                     <div className="flex flex-col text-xl font-bold">
-                      <span>{formatTokenAmount(account.balance)}</span>
+                      <span>{formatTokenAmount(account.currentBalance)}</span>
                       <span className="text-sm text-muted-foreground">
                         {formatConvertedTokens(
-                          account.balance,
+                          account.currentBalance,
                           preferredCurrency
                         )}
                       </span>
@@ -466,6 +466,21 @@ export function AccountsList() {
                     <span className="text-xs text-muted-foreground">
                       {formatConvertedTokens(
                         account.principalAmount,
+                        preferredCurrency
+                      )}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground pt-2">
+                    <TrendingUp className="h-4 w-4" />
+                    {t("accounts.card.accruedInterest") || "Accrued Interest"}
+                  </div>
+                  <div className="flex flex-col text-sm">
+                    <span className="text-emerald-600 font-semibold">
+                      +{formatTokenAmount(account.accruedInterest)}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {formatConvertedTokens(
+                        account.accruedInterest,
                         preferredCurrency
                       )}
                     </span>

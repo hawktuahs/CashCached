@@ -242,7 +242,7 @@ public class AccountService {
         FdAccount savedAccount = accountRepository.save(account);
         log.info("Closed FD account: {} by user: {}", accountNo, getCurrentUsername());
 
-        return AccountResponse.fromEntity(savedAccount);
+        return mapAccountResponse(savedAccount);
     }
 
     @Transactional
@@ -497,13 +497,23 @@ public class AccountService {
 
     private AccountResponse mapAccountResponse(FdAccount account) {
         AccountResponse response = AccountResponse.fromEntity(account);
+        BigDecimal principal = account.getPrincipalAmount() != null ? account.getPrincipalAmount() : BigDecimal.ZERO;
+        BigDecimal currentBalance = principal;
         try {
-            response.setCurrentBalance(computeCurrentBalance(account.getAccountNo()));
+            currentBalance = computeCurrentBalance(account.getAccountNo());
+            response.setCurrentBalance(currentBalance);
         } catch (Exception ex) {
             log.warn("Unable to compute current balance for account {}: {}", account.getAccountNo(), ex.getMessage());
-            response.setCurrentBalance(account.getPrincipalAmount() != null ? account.getPrincipalAmount()
-                    : BigDecimal.ZERO);
+            response.setCurrentBalance(currentBalance);
         }
+
+        BigDecimal accruedInterest = currentBalance.subtract(principal);
+        if (accruedInterest.compareTo(BigDecimal.ZERO) < 0) {
+            accruedInterest = BigDecimal.ZERO;
+        }
+        response.setAccruedInterest(accruedInterest);
+        response.setPrematurePenaltyRate(account.getPrematurePenaltyRate());
+        response.setPrematurePenaltyGraceDays(account.getPrematurePenaltyGraceDays());
         return response;
     }
 
@@ -699,3 +709,4 @@ public class AccountService {
             throw new ServiceIntegrationException("Unable to fund FD account from wallet", ex);
         }
     }
+}

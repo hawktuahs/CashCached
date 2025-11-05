@@ -32,6 +32,7 @@ interface RedemptionEnquiry {
   accountNo: string;
   customerId: string;
   principalAmount: number;
+  currentBalance: number;
   interestRate: number;
   tenureMonths: number;
   maturityDate: string;
@@ -136,6 +137,12 @@ export function RedemptionPage() {
   }
 
   const isPremature = !enquiry.isMatured;
+  const showPenaltyCard = isPremature;
+  const penaltyAmount = enquiry.penaltyAmount ?? 0;
+  const penaltyClass = penaltyAmount > 0 ? "text-2xl font-bold text-red-600" : "text-2xl font-bold";
+  const penaltyDescription = penaltyAmount > 0
+    ? enquiry.penaltyReason || "Premature redemption penalty"
+    : "Within grace period — no penalty applied";
 
   return (
     <div className="space-y-6">
@@ -177,7 +184,28 @@ export function RedemptionPage() {
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
           <CardHeader className="pb-3">
-            <CardDescription className="text-xs">Principal</CardDescription>
+            <CardDescription className="text-xs">
+              Current Balance
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold">
+              {formatTokens(enquiry.currentBalance)}
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              {formatConvertedTokens(
+                enquiry.currentBalance,
+                preferredCurrency
+              )}
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-3">
+            <CardDescription className="text-xs">
+              Principal Deposit
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold">
@@ -194,7 +222,9 @@ export function RedemptionPage() {
 
         <Card>
           <CardHeader className="pb-3">
-            <CardDescription className="text-xs">Interest</CardDescription>
+            <CardDescription className="text-xs">
+              Accrued Interest
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold text-emerald-600">
@@ -206,17 +236,17 @@ export function RedemptionPage() {
           </CardContent>
         </Card>
 
-        {enquiry.penaltyAmount > 0 && (
+        {showPenaltyCard && (
           <Card>
             <CardHeader className="pb-3">
               <CardDescription className="text-xs">Penalty</CardDescription>
             </CardHeader>
             <CardContent>
-              <p className="text-2xl font-bold text-red-600">
-                -{formatTokens(enquiry.penaltyAmount)}
+              <p className={penaltyClass}>
+                {penaltyAmount > 0 ? `-${formatTokens(penaltyAmount)}` : formatTokens(0)}
               </p>
               <p className="text-xs text-muted-foreground mt-1">
-                {enquiry.penaltyReason}
+                {penaltyDescription}
               </p>
             </CardContent>
           </Card>

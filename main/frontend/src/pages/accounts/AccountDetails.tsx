@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router";
 import {
   Card,
@@ -33,7 +33,8 @@ interface Account {
   id: string;
   accountNumber: string;
   accountType: string;
-  balance: number;
+  currentBalance: number;
+  accruedInterest: number;
   interestRate: number;
   baseInterestRate: number;
   maturityDate: string;
@@ -145,7 +146,8 @@ export function AccountDetails() {
           a.accountNo ?? a.accountNumber ?? accountId ?? ""
         ),
         accountType: String(a.accountType ?? "FIXED_DEPOSIT"),
-        balance: Number(a.currentBalance ?? a.balance ?? a.maturityAmount ?? 0),
+        currentBalance: Number(a.currentBalance ?? a.balance ?? 0),
+        accruedInterest: Number(a.accruedInterest ?? 0),
         interestRate: Number(a.interestRate ?? 0),
         baseInterestRate: Number(a.baseInterestRate ?? a.interestRate ?? 0),
         maturityDate: String(a.maturityDate ?? new Date().toISOString()),
@@ -224,13 +226,6 @@ export function AccountDetails() {
   useEffect(() => {
     if (id) fetchTransactions();
   }, [id]);
-
-  const interestEarnedTokens = useMemo(() => {
-    if (!transactions || transactions.length === 0) return 0;
-    return transactions
-      .filter((x) => x.type === "INTEREST")
-      .reduce((sum, x) => sum + (x.tokens || 0), 0);
-  }, [transactions]);
 
   const getStatusBadgeVariant = (status: string) => {
     switch (status) {
@@ -628,22 +623,6 @@ export function AccountDetails() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <p className="text-sm font-medium text-muted-foreground">
-                    {t("details.currentBalance")}
-                  </p>
-                  <div className="flex flex-col">
-                    <p className="text-2xl font-bold">
-                      {formatTokens(account.balance)}
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      {formatConvertedTokens(
-                        account.balance,
-                        preferredCurrency
-                      )}
-                    </p>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <p className="text-sm font-medium text-muted-foreground">
                     {t("details.principal")}
                   </p>
                   <div className="flex flex-col">
@@ -671,11 +650,11 @@ export function AccountDetails() {
                     {t("details.interestEarned")}
                   </p>
                   <p className="text-xl font-semibold text-green-600">
-                    {formatTokens(interestEarnedTokens)}
+                    {formatTokens(account.accruedInterest)}
                   </p>
                   <p className="text-xs text-muted-foreground">
                     {formatConvertedTokens(
-                      interestEarnedTokens,
+                      account.accruedInterest,
                       preferredCurrency
                     )}
                   </p>

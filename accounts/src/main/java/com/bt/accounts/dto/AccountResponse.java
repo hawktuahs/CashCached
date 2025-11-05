@@ -32,6 +32,9 @@ public class AccountResponse {
     private String closureReason;
     private LocalDateTime updatedAt;
     private BigDecimal currentBalance;
+    private BigDecimal accruedInterest;
+    private BigDecimal prematurePenaltyRate;
+    private Integer prematurePenaltyGraceDays;
     private Long activePricingRuleId;
     private String activePricingRuleName;
     private LocalDateTime pricingRuleAppliedAt;
@@ -60,6 +63,8 @@ public class AccountResponse {
                 .activePricingRuleId(account.getActivePricingRuleId())
                 .activePricingRuleName(account.getActivePricingRuleName())
                 .pricingRuleAppliedAt(account.getPricingRuleAppliedAt())
+                .prematurePenaltyRate(account.getPrematurePenaltyRate())
+                .prematurePenaltyGraceDays(account.getPrematurePenaltyGraceDays())
                 .build();
     }
 }

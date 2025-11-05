@@ -92,7 +92,7 @@ public class RedemptionService {
                 .accountNo(accountNo)
                 .customerId(account.getCustomerId())
                 .productCode(account.getProductCode())
-                .principalAmount(ledgerBalance)
+                .principalAmount(principalOriginal)
                 .interestRate(account.getInterestRate())
                 .tenureMonths(account.getTenureMonths())
                 .maturityDate(maturityDate)
@@ -173,7 +173,7 @@ public class RedemptionService {
                 account,
                 transactionId,
                 transactionType,
-                ledgerBalance,
+                principalOriginal,
                 accruedInterest,
                 penaltyAmount,
                 netPayoutAmount,
@@ -202,7 +202,7 @@ public class RedemptionService {
                 .redemptionType(redemptionType)
                 .transactionId(transactionId)
                 .redemptionDate(now)
-                .principalAmount(ledgerBalance)
+                .principalAmount(principalOriginal)
                 .interestAmount(accruedInterest)
                 .penaltyAmount(penaltyAmount)
                 .netPayoutAmount(netPayoutAmount)
