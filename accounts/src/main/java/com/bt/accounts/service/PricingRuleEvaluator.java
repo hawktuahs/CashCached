@@ -5,11 +5,18 @@ import com.bt.accounts.entity.FdAccount;
 import com.bt.accounts.exception.ServiceIntegrationException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
 
 @Service
 @RequiredArgsConstructor
@@ -17,11 +24,15 @@ import org.springframework.stereotype.Service;
 public class PricingRuleEvaluator {
 
     private static final BigDecimal ONE_HUNDRED = new BigDecimal("100");
+    
+    @Value("${pricing.service.url:http://localhost:8082}")
+    private String pricingServiceUrl;
+    
+    private final RestTemplate restTemplate = new RestTemplate();
 
     public EvaluationResult evaluate(FdAccount account, BigDecimal balance, String authToken) {
         try {
-            String token = resolveToken(authToken);
-            List<PricingRuleDto> rules = fetchRules(account, token);
+            List<PricingRuleDto> rules = fetchRules(account, authToken);
             if (rules.isEmpty()) {
                 return EvaluationResult.noRule(account.getBaseInterestRate());
             }
@@ -37,12 +48,40 @@ public class PricingRuleEvaluator {
             return EvaluationResult.ruleMatched(matched, rate, fee);
         } catch (Exception ex) {
             log.warn("Pricing rule evaluation failed for account {}: {}", account.getAccountNo(), ex.getMessage());
-            throw new ServiceIntegrationException("Unable to evaluate pricing rules", ex);
+            return EvaluationResult.noRule(account.getBaseInterestRate());
         }
     }
 
     private List<PricingRuleDto> fetchRules(FdAccount account, String token) {
-        return Collections.emptyList();
+        try {
+            String url = pricingServiceUrl + "/api/v1/pricing-rule/product-code/" + account.getProductCode();
+            log.info("Fetching pricing rules from: {}", url);
+            
+            HttpHeaders headers = new HttpHeaders();
+            if (token != null && !token.isBlank()) {
+                headers.set("Authorization", token.startsWith("Bearer ") ? token : "Bearer " + token);
+            }
+            
+            HttpEntity<String> entity = new HttpEntity<>(headers);
+            ResponseEntity<PricingRuleDto[]> response = restTemplate.exchange(
+                url,
+                HttpMethod.GET,
+                entity,
+                PricingRuleDto[].class
+            );
+            
+            if (response.getBody() != null) {
+                List<PricingRuleDto> rules = Arrays.asList(response.getBody());
+                log.info("Fetched {} pricing rules for product {}", rules.size(), account.getProductCode());
+                return rules;
+            }
+            
+            log.warn("No pricing rules found for product {}", account.getProductCode());
+            return Collections.emptyList();
+        } catch (Exception ex) {
+            log.error("Failed to fetch pricing rules for account {}: {}", account.getAccountNo(), ex.getMessage());
+            return Collections.emptyList();
+        }
     }
 
     private boolean matches(PricingRuleDto rule, BigDecimal balance) {
@@ -76,13 +115,6 @@ public class PricingRuleEvaluator {
             return null;
         }
         return rule.getFeeAmount().setScale(0, RoundingMode.CEILING);
-    }
-
-    private String resolveToken(String authToken) {
-        if (authToken != null && !authToken.isBlank()) {
-            return authToken;
-        }
-        throw new ServiceIntegrationException("Missing authorization token");
     }
 
     public static final class EvaluationResult {

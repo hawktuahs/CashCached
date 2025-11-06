@@ -93,6 +93,12 @@ public class PricingRuleService {
                 .collect(Collectors.toList());
     }
 
+    public List<PricingRuleResponse> getPricingRulesByProductCode(String productCode) {
+        return pricingRuleRepository.findActiveRulesByProductCode(productCode).stream()
+                .map(this::mapToPricingRuleResponse)
+                .collect(Collectors.toList());
+    }
+
     @Transactional
     public void deletePricingRule(Long ruleId) {
         PricingRule pricingRule = pricingRuleRepository.findById(ruleId)

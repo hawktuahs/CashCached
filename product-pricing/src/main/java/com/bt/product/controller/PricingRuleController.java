@@ -76,6 +76,14 @@ public class PricingRuleController {
                 .build());
     }
 
+    @GetMapping("/product-code/{productCode}")
+    @Operation(summary = "Get pricing rules by product code", description = "Retrieves all active pricing rules for a product by code (public endpoint for internal services)")
+    public ResponseEntity<List<PricingRuleResponse>> getPricingRulesByProductCode(
+            @PathVariable String productCode) {
+        List<PricingRuleResponse> responses = pricingRuleService.getPricingRulesByProductCode(productCode);
+        return ResponseEntity.ok(responses);
+    }
+
     @GetMapping("/product/{productId}/active")
     @PreAuthorize("hasAnyRole('CUSTOMER', 'ADMIN', 'BANKOFFICER')")
     @Operation(summary = "Get active pricing rules", description = "Retrieves active pricing rules for a product ordered by priority")

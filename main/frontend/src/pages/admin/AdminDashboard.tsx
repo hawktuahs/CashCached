@@ -32,7 +32,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Download } from "lucide-react";
+import { Download, RefreshCw } from "lucide-react";
 import {
   Sheet,
   SheetContent,
@@ -315,20 +315,84 @@ export function AdminDashboard() {
     }
   };
 
+  const fetchAccounts = async () => {
+    if (!selectedCustomer) return;
+    setIsLoadingAccounts(true);
+    try {
+      const res = await api.get(`/api/accounts/customer/${selectedCustomer}`, {
+        params: { _t: Date.now() },
+        headers: {
+          "Cache-Control": "no-cache",
+          Pragma: "no-cache",
+        },
+      });
+      const payload = res?.data?.data ?? res?.data ?? [];
+      console.log("Admin Dashboard - Raw account data:", payload);
+
+      const accountsArray = Array.isArray(payload) ? payload : [];
+
+      const detailedAccounts = await Promise.all(
+        accountsArray.map(async (acc: any) => {
+          try {
+            const detailRes = await api.get(
+              `/api/accounts/${acc.accountNo ?? acc.accountNumber}`,
+              {
+                params: { _t: Date.now() },
+                headers: {
+                  "Cache-Control": "no-cache",
+                  Pragma: "no-cache",
+                },
+              }
+            );
+            const detail = detailRes?.data?.data ?? detailRes?.data;
+            return detail || acc;
+          } catch (error) {
+            console.warn(
+              `Failed to fetch details for account ${
+                acc.accountNo ?? acc.accountNumber
+              }:`,
+              error
+            );
+            return acc;
+          }
+        })
+      );
+
+      console.log("Admin Dashboard - Detailed account data:", detailedAccounts);
+      const mapped = mapAccountsFromPayload(detailedAccounts);
+      console.log("Admin Dashboard - Mapped accounts:", mapped);
+      setAccounts(mapped);
+    } catch (error) {
+      console.error("Failed to fetch accounts:", error);
+      toast.error("Failed to load accounts");
+    } finally {
+      setIsLoadingAccounts(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchAccounts = async () => {
-      if (!selectedCustomer) return;
-      setIsLoadingAccounts(true);
-      try {
-        const res = await api.get(`/api/accounts/customer/${selectedCustomer}`);
-        const payload = res?.data?.data ?? res?.data ?? [];
-        const mapped = mapAccountsFromPayload(payload);
-        setAccounts(mapped);
-      } finally {
-        setIsLoadingAccounts(false);
+    fetchAccounts();
+  }, [selectedCustomer]);
+
+  useEffect(() => {
+    const handleWalletRefresh = (event: CustomEvent) => {
+      const detail = event.detail;
+      if (detail?.customerId === selectedCustomer || !detail?.customerId) {
+        fetchAccounts();
       }
     };
-    fetchAccounts();
+
+    window.addEventListener(
+      "cashcached:refresh-wallet" as any,
+      handleWalletRefresh
+    );
+
+    return () => {
+      window.removeEventListener(
+        "cashcached:refresh-wallet" as any,
+        handleWalletRefresh
+      );
+    };
   }, [selectedCustomer]);
 
   useEffect(() => {
@@ -524,19 +588,39 @@ export function AdminDashboard() {
 
   const mapAccountsFromPayload = (payload: any): Account[] => {
     const arr = Array.isArray(payload) ? payload : [];
-    return arr.map((a: any) => ({
-      id: String(a.id ?? ""),
-      accountNumber: String(a.accountNo ?? a.accountNumber ?? ""),
-      accountType: "FIXED_DEPOSIT",
-      balance: Number(a.currentBalance ?? a.balance ?? a.maturityAmount ?? 0),
-      interestRate: Number(a.interestRate ?? 0),
-      maturityDate: String(a.maturityDate ?? new Date().toISOString()),
-      status: String(a.status ?? "ACTIVE") as any,
-      createdAt: String(a.createdAt ?? new Date().toISOString()),
-      productName: String(a.productName ?? a.productCode ?? "Product"),
-      principalAmount: Number(a.principalAmount ?? 0),
-      productCode: String(a.productCode ?? ""),
-    }));
+    return arr.map((a: any) => {
+      const balance = Number(
+        a.currentBalance ??
+          a.balance ??
+          a.accountBalance ??
+          a.maturityAmount ??
+          a.principalAmount ??
+          0
+      );
+
+      console.log(`Account ${a.accountNo ?? a.accountNumber}: raw data =`, {
+        currentBalance: a.currentBalance,
+        balance: a.balance,
+        accountBalance: a.accountBalance,
+        maturityAmount: a.maturityAmount,
+        principalAmount: a.principalAmount,
+        computed: balance,
+      });
+
+      return {
+        id: String(a.id ?? ""),
+        accountNumber: String(a.accountNo ?? a.accountNumber ?? ""),
+        accountType: "FIXED_DEPOSIT",
+        balance: balance,
+        interestRate: Number(a.interestRate ?? 0),
+        maturityDate: String(a.maturityDate ?? new Date().toISOString()),
+        status: String(a.status ?? "ACTIVE") as any,
+        createdAt: String(a.createdAt ?? new Date().toISOString()),
+        productName: String(a.productName ?? a.productCode ?? "Product"),
+        principalAmount: Number(a.principalAmount ?? 0),
+        productCode: String(a.productCode ?? ""),
+      };
+    });
   };
 
   const refreshProducts = async () => {
@@ -1092,8 +1176,27 @@ export function AdminDashboard() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Accounts</CardTitle>
-          <CardDescription>Accounts for the selected customer</CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Accounts</CardTitle>
+              <CardDescription>
+                Accounts for the selected customer
+              </CardDescription>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => fetchAccounts()}
+              disabled={isLoadingAccounts || !selectedCustomer}
+            >
+              <RefreshCw
+                className={`mr-2 h-4 w-4 ${
+                  isLoadingAccounts ? "animate-spin" : ""
+                }`}
+              />
+              Refresh
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           {isLoadingAccounts ? (
