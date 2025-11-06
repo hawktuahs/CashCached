@@ -1,5 +1,4 @@
 import axios from 'axios';
-import { jwtDecode } from 'jwt-decode';
 
 export const api = axios.create({
   baseURL: '/',
@@ -13,10 +12,11 @@ api.interceptors.response.use(
     return response;
   },
   (error) => {
-    if (error.response?.status === 401) {
+    if (error.response?.status === 401 || error.response?.status === 403) {
       const currentPath = window.location.pathname;
       if (currentPath !== '/login' && !error.config?.url?.includes('/verify-otp')) {
         localStorage.removeItem('token');
+        delete api.defaults.headers.common['Authorization'];
         window.location.href = '/login';
       }
     }
@@ -30,15 +30,6 @@ api.interceptors.request.use((config) => {
     config.headers = config.headers || {};
     if (!config.headers['Authorization']) {
       config.headers['Authorization'] = `Bearer ${token}`;
-    }
-    try {
-      const decoded = jwtDecode<{ sub: string }>(token);
-      const hasHeader = typeof config.headers['X-User-Id'] !== 'undefined';
-      if (decoded?.sub && !hasHeader) {
-        config.headers['X-User-Id'] = decoded.sub;
-      }
-    } catch {
-      // Ignore JWT decode errors
     }
   }
   return config;

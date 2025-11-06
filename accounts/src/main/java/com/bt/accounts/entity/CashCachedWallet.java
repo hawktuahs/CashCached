@@ -21,6 +21,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import com.bt.accounts.time.TimeProvider;
+
 @Entity
 @Table(name = "cashcached_wallet", indexes = {
         @Index(name = "idx_wallet_customer", columnList = "customer_id")
@@ -56,7 +58,7 @@ public class CashCachedWallet {
 
     @PrePersist
     void onCreate() {
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = TimeProvider.currentDateTime();
         createdAt = now;
         updatedAt = now;
         if (balance == null) {
@@ -69,6 +71,6 @@ public class CashCachedWallet {
 
     @PreUpdate
     void onUpdate() {
-        updatedAt = LocalDateTime.now();
+        updatedAt = TimeProvider.currentDateTime();
     }
 }

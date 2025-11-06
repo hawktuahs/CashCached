@@ -91,3 +91,6 @@ app:
     from: ${APP_MAIL_FROM:${spring.mail.username}}
   kafka:
     request-timeout-seconds: ${KAFKA_REQUEST_TIMEOUT:30}
+  session:
+    timeout-seconds: ${SESSION_TIMEOUT_SECONDS:3600}
+    idle-timeout-seconds: ${SESSION_IDLE_TIMEOUT_SECONDS:900}

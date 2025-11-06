@@ -62,10 +62,22 @@ springdoc:
     path: /swagger-ui.html
     operations-sorter: method
 
+services:
+  product:
+    url: ${SERVICES_PRODUCT_URL:http://localhost:8082}
+  customer:
+    url: ${SERVICES_CUSTOMER_URL:http://localhost:8081}
+    username: ${SERVICES_CUSTOMER_USERNAME:admin}
+    password: ${SERVICES_CUSTOMER_PASSWORD:abc123}
+
 accounts:
   sequence:
     initial-value: 10000001
     prefix: FD
+  iban:
+    enabled: true
+    country-code: IN
+    bank-code: SBIN
 
 cashcached:
   rpc-url: ${CASHCACHED_RPC_URL:https://polygon-amoy.g.alchemy.com/v2/demo}

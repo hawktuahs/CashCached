@@ -3,19 +3,17 @@ package com.bt.accounts.service;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.math.RoundingMode;
-import java.time.Duration;
-import java.time.LocalDateTime;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.client.RestTemplate;
+import org.springframework.util.StringUtils;
 
 import com.bt.accounts.blockchain.CashCachedContract;
 import com.bt.accounts.config.CashCachedProperties;
@@ -31,27 +29,32 @@ import com.bt.accounts.repository.CashCachedLedgerRepository;
 import com.bt.accounts.repository.CashCachedWalletRepository;
 import com.bt.accounts.exception.InvalidAccountDataException;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class CashCachedService {
 
     private static final BigDecimal ZERO = BigDecimal.ZERO;
+    private static final Map<String, BigDecimal> STATIC_RATE_TABLE = Map.of(
+            "USD", new BigDecimal("1.00"),
+            "KWD", new BigDecimal("0.31"),
+            "INR", new BigDecimal("83.20"),
+            "GBP", new BigDecimal("0.78"),
+            "CAD", new BigDecimal("1.36"),
+            "MXN", new BigDecimal("18.40"),
+            "ZAR", new BigDecimal("18.20"));
 
     private final CashCachedContract contract;
     private final CashCachedProperties properties;
     private final CashCachedLedgerRepository ledgerRepository;
     private final CashCachedWalletRepository walletRepository;
+    private final CustomerProfileClient customerProfileClient;
 
     private final AtomicReference<Integer> decimalsCache = new AtomicReference<>();
-    private final RestTemplate restTemplate = new RestTemplate();
-    private final ObjectMapper objectMapper = new ObjectMapper();
-    private final Map<String, RateSnapshot> rateCache = new ConcurrentHashMap<>();
 
     @Transactional
     public CashCachedLedgerEntry issue(CashCachedIssueRequest request) {
@@ -71,21 +74,22 @@ public class CashCachedService {
     }
 
     @Transactional
+    public CashCachedLedgerEntry recordContractLock(String customerId, BigDecimal amount, String reference) {
+        BigDecimal tokens = requireWholeTokens(amount);
+        CashCachedWallet wallet = ensureWallet(customerId);
+        return ledgerRepository.save(CashCachedLedgerEntry.builder()
+                .customerId(customerId)
+                .changeAmount(BigDecimal.ZERO)
+                .balanceAfter(wallet.getBalance())
+                .operation(Operation.CONTRACT)
+                .reference(reference + " (" + tokens + " tokens)")
+                .build());
+    }
+
+    @Transactional
     public void mintForInterest(BigDecimal amount, String reference) {
         BigDecimal tokens = requireWholeTokens(amount);
-        TransactionReceiptHolder receipt = mintToTreasury(tokens);
-        String treasuryId = properties.getTreasuryAddress();
-        CashCachedWallet treasuryWallet = ensureWallet(treasuryId);
-        treasuryWallet.setBalance(treasuryWallet.getBalance().add(tokens));
-        walletRepository.save(treasuryWallet);
-        ledgerRepository.save(CashCachedLedgerEntry.builder()
-                .customerId(treasuryId)
-                .changeAmount(tokens)
-                .balanceAfter(treasuryWallet.getBalance())
-                .operation(Operation.ISSUE)
-                .transactionHash(receipt.transactionHash())
-                .reference(reference)
-                .build());
+        recordTreasuryIssuance(tokens, reference);
     }
 
     @Transactional
@@ -258,6 +262,22 @@ public class CashCachedService {
         }
     }
 
+    private void recordTreasuryIssuance(BigDecimal tokens, String reference) {
+        TransactionReceiptHolder receipt = mintToTreasury(tokens);
+        String treasuryId = properties.getTreasuryAddress();
+        CashCachedWallet treasuryWallet = ensureWallet(treasuryId);
+        treasuryWallet.setBalance(treasuryWallet.getBalance().add(tokens));
+        walletRepository.save(treasuryWallet);
+        ledgerRepository.save(CashCachedLedgerEntry.builder()
+                .customerId(treasuryId)
+                .changeAmount(tokens)
+                .balanceAfter(treasuryWallet.getBalance())
+                .operation(Operation.ISSUE)
+                .transactionHash(receipt.transactionHash())
+                .reference(reference)
+                .build());
+    }
+
     private TransactionReceiptHolder burnFromTreasury(BigDecimal amount) {
         try {
             BigInteger value = toTokenUnits(amount);
@@ -333,42 +353,18 @@ public class CashCachedService {
     }
 
     private Map<String, BigDecimal> resolveRates() {
-        String base = normalizeCurrency(properties.getBaseCurrency());
-        RateSnapshot snapshot = rateCache.get(base);
-        if (snapshot != null && Duration.between(snapshot.fetchedAt(), LocalDateTime.now()).toHours() < 24) {
-            return snapshot.rates();
-        }
-        Map<String, BigDecimal> fetched = fetchRates(base);
-        rateCache.put(base, new RateSnapshot(fetched, LocalDateTime.now()));
-        return fetched;
-    }
+        Map<String, BigDecimal> rates = new HashMap<>();
+        STATIC_RATE_TABLE.forEach((code, rate) -> rates.put(normalizeCurrency(code), rate.setScale(4, RoundingMode.HALF_UP)));
 
-    private Map<String, BigDecimal> fetchRates(String base) {
-        try {
-            String symbols = String.join(",", properties.getSupportedCurrencies().stream()
-                    .map(this::normalizeCurrency)
-                    .filter(code -> !code.equalsIgnoreCase(base))
-                    .toList());
-            String url = "%s?base=%s&symbols=%s".formatted(properties.getExchangeRateUrl(), base, symbols);
-            String payload = restTemplate.getForObject(url, String.class);
-            JsonNode root = objectMapper.readTree(payload);
-            JsonNode ratesNode = root.path("rates");
-            Map<String, BigDecimal> result = new HashMap<>();
-            if (ratesNode.isObject()) {
-                ratesNode.fieldNames().forEachRemaining(fieldName -> {
-                    BigDecimal value = ratesNode.get(fieldName).decimalValue();
-                    result.put(normalizeCurrency(fieldName), value);
-                });
-            }
-            result.put(base, BigDecimal.ONE);
-            properties.getSupportedCurrencies().stream()
-                    .map(this::normalizeCurrency)
-                    .filter(code -> !result.containsKey(code) && !code.equalsIgnoreCase(base))
-                    .forEach(code -> result.put(code, BigDecimal.ONE));
-            return result;
-        } catch (Exception ex) {
-            throw new IllegalStateException("Unable to fetch exchange rates", ex);
-        }
+        String base = normalizeCurrency(properties.getBaseCurrency());
+        rates.putIfAbsent(base, BigDecimal.ONE.setScale(4, RoundingMode.HALF_UP));
+
+        properties.getSupportedCurrencies().stream()
+                .map(this::normalizeCurrency)
+                .forEach(code -> rates.putIfAbsent(code, STATIC_RATE_TABLE.getOrDefault(code,
+                        BigDecimal.ONE.setScale(4, RoundingMode.HALF_UP))));
+
+        return Collections.unmodifiableMap(rates);
     }
 
     private String normalizeCurrency(String code) {
@@ -379,12 +375,15 @@ public class CashCachedService {
     }
 
     private String resolvePreferredCurrency(String authToken, String customerId) {
-        if (authToken == null || authToken.isBlank()) {
-            return properties.getBaseCurrency();
+        String baseCurrency = normalizeCurrency(properties.getBaseCurrency());
+        if (!StringUtils.hasText(customerId)) {
+            return baseCurrency;
         }
-        return properties.getBaseCurrency();
+
+        return customerProfileClient.fetchPreferredCurrency(customerId, authToken)
+                .map(this::normalizeCurrency)
+                .filter(StringUtils::hasText)
+                .orElse(baseCurrency);
     }
 
-    private record RateSnapshot(Map<String, BigDecimal> rates, LocalDateTime fetchedAt) {
-    }
 }

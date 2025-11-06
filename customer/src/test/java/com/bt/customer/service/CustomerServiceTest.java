@@ -49,7 +49,6 @@ class CustomerServiceTest {
     void setUp() {
         user = User.builder()
                 .id(1L)
-                .username("testuser")
                 .password("encoded-password")
                 .fullName("Test User")
                 .email("test@example.com")
@@ -67,31 +66,30 @@ class CustomerServiceTest {
     @DisplayName("Should get current user profile successfully")
     void shouldGetCurrentUserProfile() {
         when(securityContext.getAuthentication()).thenReturn(authentication);
-        when(authentication.getName()).thenReturn("testuser");
+        when(authentication.getName()).thenReturn("test@example.com");
         SecurityContextHolder.setContext(securityContext);
-        when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(user));
+        when(userRepository.findByEmail("test@example.com")).thenReturn(Optional.of(user));
 
         UserProfileResponse response = customerService.getCurrentUserProfile();
 
         assertNotNull(response);
-        assertEquals("testuser", response.getUsername());
         assertEquals("Test User", response.getFullName());
         assertEquals("test@example.com", response.getEmail());
         assertEquals("CUSTOMER", response.getRole());
 
-        verify(userRepository, times(1)).findByUsername("testuser");
+        verify(userRepository, times(1)).findByEmail("test@example.com");
     }
 
     @Test
     @DisplayName("Should throw exception when current user not found")
     void shouldThrowExceptionWhenCurrentUserNotFound() {
         when(securityContext.getAuthentication()).thenReturn(authentication);
-        when(authentication.getName()).thenReturn("testuser");
+        when(authentication.getName()).thenReturn("test@example.com");
         SecurityContextHolder.setContext(securityContext);
-        when(userRepository.findByUsername("testuser")).thenReturn(Optional.empty());
+        when(userRepository.findByEmail("test@example.com")).thenReturn(Optional.empty());
 
         assertThrows(UserNotFoundException.class, () -> customerService.getCurrentUserProfile());
-        verify(userRepository, times(1)).findByUsername("testuser");
+        verify(userRepository, times(1)).findByEmail("test@example.com");
     }
 
     @Test
@@ -99,7 +97,6 @@ class CustomerServiceTest {
     void shouldGetAllCustomers() {
         User customer2 = User.builder()
                 .id(2L)
-                .username("customer2")
                 .fullName("Customer Two")
                 .email("customer2@example.com")
                 .role(User.Role.CUSTOMER)
@@ -111,8 +108,8 @@ class CustomerServiceTest {
 
         assertNotNull(customers);
         assertEquals(2, customers.size());
-        assertEquals("testuser", customers.get(0).getUsername());
-        assertEquals("customer2", customers.get(1).getUsername());
+        assertEquals("test@example.com", customers.get(0).getEmail());
+        assertEquals("customer2@example.com", customers.get(1).getEmail());
 
         verify(userRepository, times(1)).findAll();
     }
@@ -127,9 +124,9 @@ class CustomerServiceTest {
                 .build();
 
         when(securityContext.getAuthentication()).thenReturn(authentication);
-        when(authentication.getName()).thenReturn("testuser");
+        when(authentication.getName()).thenReturn("test@example.com");
         SecurityContextHolder.setContext(securityContext);
-        when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(user));
+        when(userRepository.findByEmail("test@example.com")).thenReturn(Optional.of(user));
         when(userRepository.existsByEmail("updated@example.com")).thenReturn(false);
         when(userRepository.save(any(User.class))).thenReturn(user);
 
@@ -147,9 +144,9 @@ class CustomerServiceTest {
                 .build();
 
         when(securityContext.getAuthentication()).thenReturn(authentication);
-        when(authentication.getName()).thenReturn("testuser");
+        when(authentication.getName()).thenReturn("test@example.com");
         SecurityContextHolder.setContext(securityContext);
-        when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(user));
+        when(userRepository.findByEmail("test@example.com")).thenReturn(Optional.of(user));
         when(userRepository.save(any(User.class))).thenReturn(user);
 
         UserProfileResponse response = customerService.updateProfile(request);
@@ -166,9 +163,9 @@ class CustomerServiceTest {
                 .build();
 
         when(securityContext.getAuthentication()).thenReturn(authentication);
-        when(authentication.getName()).thenReturn("testuser");
+        when(authentication.getName()).thenReturn("test@example.com");
         SecurityContextHolder.setContext(securityContext);
-        when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(user));
+        when(userRepository.findByEmail("test@example.com")).thenReturn(Optional.of(user));
         when(userRepository.existsByEmail("existing@example.com")).thenReturn(true);
 
         assertThrows(IllegalArgumentException.class, () -> customerService.updateProfile(request));
@@ -181,12 +178,12 @@ class CustomerServiceTest {
         when(securityContext.getAuthentication()).thenReturn(authentication);
         when(authentication.getPrincipal()).thenReturn(userPrincipal);
         SecurityContextHolder.setContext(securityContext);
-        when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(user));
+        when(userRepository.findByEmail("test@example.com")).thenReturn(Optional.of(user));
 
         String role = customerService.getCurrentUserRole();
 
         assertEquals("CUSTOMER", role);
-        verify(userRepository, times(1)).findByUsername("testuser");
+        verify(userRepository, times(1)).findByEmail("test@example.com");
     }
 
     @Test
@@ -195,7 +192,7 @@ class CustomerServiceTest {
         when(securityContext.getAuthentication()).thenReturn(authentication);
         when(authentication.getPrincipal()).thenReturn(userPrincipal);
         SecurityContextHolder.setContext(securityContext);
-        when(userRepository.findByUsername("testuser")).thenReturn(Optional.empty());
+        when(userRepository.findByEmail("test@example.com")).thenReturn(Optional.empty());
 
         String role = customerService.getCurrentUserRole();
 

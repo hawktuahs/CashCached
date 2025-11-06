@@ -2,21 +2,12 @@ package com.bt.accounts.service;
 
 import com.bt.accounts.dto.PricingRuleDto;
 import com.bt.accounts.entity.FdAccount;
-import com.bt.accounts.exception.ServiceIntegrationException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestTemplate;
 
 @Service
 @RequiredArgsConstructor
@@ -24,11 +15,8 @@ import org.springframework.web.client.RestTemplate;
 public class PricingRuleEvaluator {
 
     private static final BigDecimal ONE_HUNDRED = new BigDecimal("100");
-    
-    @Value("${pricing.service.url:http://localhost:8082}")
-    private String pricingServiceUrl;
-    
-    private final RestTemplate restTemplate = new RestTemplate();
+
+    private final PricingRuleClient pricingRuleClient;
 
     public EvaluationResult evaluate(FdAccount account, BigDecimal balance, String authToken) {
         try {
@@ -53,35 +41,7 @@ public class PricingRuleEvaluator {
     }
 
     private List<PricingRuleDto> fetchRules(FdAccount account, String token) {
-        try {
-            String url = pricingServiceUrl + "/api/v1/pricing-rule/product-code/" + account.getProductCode();
-            log.info("Fetching pricing rules from: {}", url);
-            
-            HttpHeaders headers = new HttpHeaders();
-            if (token != null && !token.isBlank()) {
-                headers.set("Authorization", token.startsWith("Bearer ") ? token : "Bearer " + token);
-            }
-            
-            HttpEntity<String> entity = new HttpEntity<>(headers);
-            ResponseEntity<PricingRuleDto[]> response = restTemplate.exchange(
-                url,
-                HttpMethod.GET,
-                entity,
-                PricingRuleDto[].class
-            );
-            
-            if (response.getBody() != null) {
-                List<PricingRuleDto> rules = Arrays.asList(response.getBody());
-                log.info("Fetched {} pricing rules for product {}", rules.size(), account.getProductCode());
-                return rules;
-            }
-            
-            log.warn("No pricing rules found for product {}", account.getProductCode());
-            return Collections.emptyList();
-        } catch (Exception ex) {
-            log.error("Failed to fetch pricing rules for account {}: {}", account.getAccountNo(), ex.getMessage());
-            return Collections.emptyList();
-        }
+        return pricingRuleClient.fetchActiveRules(account, token);
     }
 
     private boolean matches(PricingRuleDto rule, BigDecimal balance) {

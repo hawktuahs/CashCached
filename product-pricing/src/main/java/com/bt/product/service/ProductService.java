@@ -51,6 +51,8 @@ public class ProductService {
                 .regulatoryCode(request.getRegulatoryCode())
                 .requiresApproval(request.getRequiresApproval())
                 .compoundingFrequency(request.getCompoundingFrequency())
+                .prematurePenaltyRate(request.getPrematurePenaltyRate())
+                .prematurePenaltyGraceDays(request.getPrematurePenaltyGraceDays())
                 .build();
 
         Product savedProduct = productRepository.save(product);
@@ -81,6 +83,8 @@ public class ProductService {
         product.setRegulatoryCode(request.getRegulatoryCode());
         product.setRequiresApproval(request.getRequiresApproval());
         product.setCompoundingFrequency(request.getCompoundingFrequency());
+        product.setPrematurePenaltyRate(request.getPrematurePenaltyRate());
+        product.setPrematurePenaltyGraceDays(request.getPrematurePenaltyGraceDays());
 
         Product updatedProduct = productRepository.save(product);
         return mapToProductResponse(updatedProduct);
@@ -203,6 +207,8 @@ public class ProductService {
                 .compoundingFrequency(product.getCompoundingFrequency())
                 .createdAt(product.getCreatedAt())
                 .updatedAt(product.getUpdatedAt())
+                .prematurePenaltyRate(product.getPrematurePenaltyRate())
+                .prematurePenaltyGraceDays(product.getPrematurePenaltyGraceDays())
                 .build();
     }
 

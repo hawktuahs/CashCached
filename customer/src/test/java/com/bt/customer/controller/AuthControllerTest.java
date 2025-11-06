@@ -44,7 +44,6 @@ class AuthControllerTest {
         @BeforeEach
         void setUp() {
                 registerRequest = RegisterRequest.builder()
-                                .username("testuser")
                                 .password("password123")
                                 .fullName("Test User")
                                 .email("test@example.com")
@@ -53,14 +52,14 @@ class AuthControllerTest {
                                 .build();
 
                 loginRequest = LoginRequest.builder()
-                                .username("testuser")
+                                .email("test@example.com")
                                 .password("password123")
                                 .build();
 
                 authResponse = AuthResponse.builder()
                                 .token("sample.jwt.token")
                                 .tokenType("Bearer")
-                                .username("testuser")
+                                .email("test@example.com")
                                 .role("CUSTOMER")
                                 .message("Success")
                                 .build();
@@ -98,7 +97,6 @@ class AuthControllerTest {
         @Test
         @DisplayName("Should return bad request for invalid registration data")
         void shouldReturnBadRequestForInvalidData() throws Exception {
-                registerRequest.setUsername("");
                 registerRequest.setEmail("invalid-email");
 
                 mockMvc.perform(post("/api/auth/register")
@@ -138,7 +136,7 @@ class AuthControllerTest {
         @Test
         @DisplayName("Should return bad request when login fields are blank")
         void shouldReturnBadRequestWhenLoginFieldsAreBlank() throws Exception {
-                loginRequest.setUsername("");
+                loginRequest.setEmail("");
                 loginRequest.setPassword("");
 
                 mockMvc.perform(post("/api/auth/login")

@@ -658,7 +658,7 @@ export function AdminDashboard() {
             onClick={exportCsv}
             disabled={accounts.length === 0}
           >
-            <Download className="mr-2 h-4 w-4" />
+            <Download className="h-4 w-4" />
             Export CSV
           </Button>
         </div>

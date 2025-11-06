@@ -35,4 +35,6 @@ public class ProductResponse {
     private String compoundingFrequency;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    private BigDecimal prematurePenaltyRate;
+    private Integer prematurePenaltyGraceDays;
 }

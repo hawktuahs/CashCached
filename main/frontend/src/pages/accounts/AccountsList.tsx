@@ -40,7 +40,8 @@ interface Account {
   id: string;
   accountNumber: string;
   accountType: string;
-  balance: number;
+  currentBalance: number;
+  accruedInterest: number;
   interestRate: number;
   maturityDate: string;
   status: "ACTIVE" | "MATURED" | "CLOSED";
@@ -85,7 +86,7 @@ export function AccountsList() {
         a.accountType,
         a.status,
         String(a.principalAmount),
-        String(a.balance),
+        String(a.currentBalance),
         String(a.interestRate),
         new Date(a.createdAt).toISOString(),
         new Date(a.maturityDate).toISOString(),
@@ -120,9 +121,8 @@ export function AccountsList() {
           id: String(a.id ?? ""),
           accountNumber: String(a.accountNo ?? a.accountNumber ?? ""),
           accountType: "FIXED_DEPOSIT",
-          balance: Number(
-            a.currentBalance ?? a.balance ?? a.maturityAmount ?? 0
-          ),
+          currentBalance: Number(a.currentBalance ?? a.balance ?? 0),
+          accruedInterest: Number(a.accruedInterest ?? 0),
           interestRate: Number(a.interestRate ?? 0),
           maturityDate: String(a.maturityDate ?? new Date().toISOString()),
           status: String(a.status ?? "ACTIVE") as any,
@@ -204,12 +204,105 @@ export function AccountsList() {
     return (
       <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <Skeleton className="h-8 w-48" />
-          <Skeleton className="h-10 w-32" />
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">
+              {isAdmin ? t("accounts.all") : t("accounts.mine")}
+            </h1>
+            <p className="text-muted-foreground">
+              {isAdmin
+                ? t("accounts.subtitle.admin")
+                : t("accounts.subtitle.customer")}
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" disabled>
+              <RefreshCw className="h-4 w-4" />
+              {t("action.refresh")}
+            </Button>
+            {!isAdmin && (
+              <Button disabled>
+                <Download className="h-4 w-4" />
+                {t("action.exportCsv")}
+              </Button>
+            )}
+          </div>
         </div>
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-1 items-center gap-2">
+            <div className="relative flex-1 max-w-sm">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder={t("accounts.searchPlaceholder")}
+                disabled
+                className="pl-9"
+              />
+            </div>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-32" disabled>
+                <Filter className="mr-2 h-4 w-4" />
+                <SelectValue placeholder={t("accounts.filter.status")} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">
+                  {t("accounts.filter.allStatus")}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={typeFilter} onValueChange={setTypeFilter}>
+              <SelectTrigger className="w-40" disabled>
+                <SelectValue placeholder={t("accounts.filter.type")} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">
+                  {t("accounts.filter.allTypes")}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {[...Array(6)].map((_, i) => (
-            <Skeleton key={i} className="h-64 w-full" />
+            <Card key={i}>
+              <CardHeader>
+                <div className="flex items-start justify-between">
+                  <div className="space-y-2 flex-1">
+                    <div className="flex items-center gap-2">
+                      <Skeleton className="h-10 w-10 rounded-lg" />
+                      <Skeleton className="h-6 w-32" />
+                    </div>
+                    <Skeleton className="h-4 w-48" />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Skeleton className="h-6 w-16" />
+                    <Skeleton className="h-8 w-8" />
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Skeleton className="h-4 w-28" />
+                    <Skeleton className="h-6 w-24" />
+                    <Skeleton className="h-3 w-20" />
+                  </div>
+                  <div className="space-y-2">
+                    <Skeleton className="h-4 w-24" />
+                    <Skeleton className="h-6 w-16" />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Skeleton className="h-4 w-32" />
+                  <Skeleton className="h-4 w-28" />
+                </div>
+                <div className="space-y-2">
+                  <Skeleton className="h-4 w-28" />
+                  <Skeleton className="h-4 w-24" />
+                </div>
+                <div className="pt-2">
+                  <Skeleton className="h-10 w-full" />
+                </div>
+              </CardContent>
+            </Card>
           ))}
         </div>
       </div>
@@ -229,18 +322,18 @@ export function AccountsList() {
               : t("accounts.subtitle.customer")}
           </p>
         </div>
-        {!isAdmin && (
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={reloadAccounts}>
-              <RefreshCw className="mr-2 h-4 w-4" />
-              {t("action.refresh")}
-            </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={reloadAccounts}>
+            <RefreshCw className="h-4 w-4" />
+            {t("action.refresh")}
+          </Button>
+          {!isAdmin && (
             <Button onClick={exportCsv} disabled={accounts.length === 0}>
-              <Download className="mr-2 h-4 w-4" />
+              <Download className="h-4 w-4" />
               {t("action.exportCsv")}
             </Button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -256,7 +349,7 @@ export function AccountsList() {
           </div>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger className="w-32">
-              <Filter className="mr-2 h-4 w-4" />
+              <Filter className="h-4 w-4" />
               <SelectValue placeholder={t("accounts.filter.status")} />
             </SelectTrigger>
             <SelectContent>
@@ -300,7 +393,7 @@ export function AccountsList() {
             </p>
             {!isAdmin && accounts.length > 0 && (
               <Button className="mt-4" onClick={exportCsv}>
-                <Download className="mr-2 h-4 w-4" />
+                <Download className="h-4 w-4" />
                 {t("action.exportCsv")}
               </Button>
             )}
@@ -343,10 +436,10 @@ export function AccountsList() {
                       {t("accounts.card.currentBalance")}
                     </div>
                     <div className="flex flex-col text-xl font-bold">
-                      <span>{formatTokenAmount(account.balance)}</span>
+                      <span>{formatTokenAmount(account.currentBalance)}</span>
                       <span className="text-sm text-muted-foreground">
                         {formatConvertedTokens(
-                          account.balance,
+                          account.currentBalance,
                           preferredCurrency
                         )}
                       </span>
@@ -377,6 +470,21 @@ export function AccountsList() {
                       )}
                     </span>
                   </div>
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground pt-2">
+                    <TrendingUp className="h-4 w-4" />
+                    {t("accounts.card.accruedInterest") || "Accrued Interest"}
+                  </div>
+                  <div className="flex flex-col text-sm">
+                    <span className="text-emerald-600 font-semibold">
+                      +{formatTokenAmount(account.accruedInterest)}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {formatConvertedTokens(
+                        account.accruedInterest,
+                        preferredCurrency
+                      )}
+                    </span>
+                  </div>
                 </div>
 
                 <div className="space-y-2">
@@ -398,7 +506,7 @@ export function AccountsList() {
                 <div className="pt-2">
                   <Link to={`/accounts/${account.accountNumber}`}>
                     <Button className="w-full" variant="outline">
-                      <Eye className="mr-2 h-4 w-4" />
+                      <Eye className="h-4 w-4" />
                       {t("action.viewDetails")}
                     </Button>
                   </Link>

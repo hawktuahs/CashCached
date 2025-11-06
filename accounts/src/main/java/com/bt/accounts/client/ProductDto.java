@@ -23,4 +23,6 @@ public class ProductDto {
     private BigDecimal maxAmount;
     private String currency;
     private String status;
+    private BigDecimal prematurePenaltyRate;
+    private Integer prematurePenaltyGraceDays;
 }

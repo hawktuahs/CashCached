@@ -1,4 +1,4 @@
-import { createContext, useContext, useMemo, useState } from "react";
+import { createContext, useContext, useMemo, useState, useEffect } from "react";
 import type { ReactNode } from "react";
 import { TOKEN_SYMBOL } from "@/lib/currency";
 
@@ -16,6 +16,9 @@ const dict: Dict = {
   "nav.accounts": { en: "My Accounts", ja: "口座" },
   "nav.admin": { en: "Administration", ja: "管理" },
   "nav.admin.dashboard": { en: "Admin Dashboard", ja: "管理ダッシュボード" },
+  "nav.allAccounts": { en: "All Accounts", ja: "すべての口座" },
+  "nav.openAccount": { en: "Open Account", ja: "口座を開く" },
+  "nav.stablecoin": { en: "CashCached", ja: "CashCached" },
   "brand.name": { en: "CashCached", ja: "CashCached" },
   "brand.subtitle": {
     en: "CashCached Digital Banking",
@@ -70,6 +73,10 @@ const dict: Dict = {
   },
   "accounts.card.account": { en: "Account", ja: "口座番号" },
   "accounts.card.currentBalance": { en: "Current Balance", ja: "現在残高" },
+  "accounts.card.accruedInterest": {
+    en: "Accrued Interest",
+    ja: "発生利息",
+  },
   "accounts.card.interestRate": { en: "Interest Rate", ja: "金利" },
   "accounts.card.principal": { en: "Principal Amount", ja: "元本" },
   "accounts.card.maturityDate": { en: "Maturity Date", ja: "満期日" },
@@ -149,6 +156,10 @@ const dict: Dict = {
   "calculator.yearly": { en: "Yearly", ja: "毎年" },
   "calculator.calculate": { en: "Calculate", ja: "計算する" },
   "calculator.results": { en: "Results", ja: "結果" },
+  "calculator.section.result.interest": {
+    en: "Interest Earned",
+    ja: "獲得利息",
+  },
   "calculator.result.principal": {
     en: `Principal (${TOKEN_SYMBOL})`,
     ja: `元本 (${TOKEN_SYMBOL})`,
@@ -291,6 +302,22 @@ const dict: Dict = {
     en: "Failed to load products",
     ja: "商品の読み込みに失敗しました",
   },
+  "products.penalties.prematureTitle": {
+    en: "Premature Redemption Penalty",
+    ja: "途中解約ペナルティ",
+  },
+  "products.penalties.rate": {
+    en: "Penalty Rate",
+    ja: "ペナルティ率",
+  },
+  "products.penalties.graceDays": {
+    en: "Grace Period (days)",
+    ja: "猶予期間（日数）",
+  },
+  "products.penalties.graceHint": {
+    en: "Days after opening before penalties apply",
+    ja: "開設後ペナルティが発生するまでの日数",
+  },
   "dashboard.title": { en: "Dashboard", ja: "ダッシュボード" },
   "dashboard.greeting.morning": {
     en: "Good morning",
@@ -398,6 +425,7 @@ const dict: Dict = {
   "common.months": { en: "months", ja: "ヶ月" },
   "common.to": { en: "to", ja: "〜" },
   "calculator.interestRate": { en: "Interest Rate", ja: "金利" },
+  "calculator.nominal": { en: "Nominal", ja: "名目" },
   "auth.login.title": { en: "Sign in", ja: "ログイン" },
   "auth.login.username": { en: "Username", ja: "ユーザー名" },
   "auth.login.password": { en: "Password", ja: "パスワード" },
@@ -439,6 +467,35 @@ const dict: Dict = {
     en: "Confirm Password",
     ja: "パスワード確認",
   },
+  "auth.field.address": { en: "Address", ja: "住所" },
+  "auth.field.dateOfBirth": { en: "Date of Birth", ja: "生年月日" },
+  "auth.field.aadhaarNumber": { en: "Aadhaar Number", ja: "アーダール番号" },
+  "auth.field.panNumber": { en: "PAN Number", ja: "PAN番号" },
+  "auth.field.preferredCurrency": {
+    en: "Preferred Currency",
+    ja: "希望通貨",
+  },
+  "auth.placeholder.address": {
+    en: "Enter your residential address",
+    ja: "住所を入力してください",
+  },
+  "auth.placeholder.aadhaarNumber": {
+    en: "Enter 12-digit Aadhaar number",
+    ja: "12桁のアーダール番号を入力",
+  },
+  "auth.placeholder.panNumber": {
+    en: "Enter PAN number (e.g., ABCDE1234F)",
+    ja: "PAN番号を入力してください",
+  },
+  "auth.register.success": {
+    en: "Registration successful!",
+    ja: "登録が完了しました",
+  },
+  "auth.register.failed": {
+    en: "Registration failed. Please try again.",
+    ja: "登録に失敗しました。もう一度お試しください。",
+  },
+  "auth.register.password": { en: "Password", ja: "パスワード" },
   "auth.placeholder.username": {
     en: "Enter your username",
     ja: "ユーザー名を入力",
@@ -479,6 +536,49 @@ const dict: Dict = {
   },
   "auth.showPassword": { en: "Show password", ja: "パスワードを表示" },
   "auth.hidePassword": { en: "Hide password", ja: "パスワードを非表示" },
+  "auth.tabs.password": { en: "Password", ja: "パスワード" },
+  "auth.tabs.magicLink": { en: "Magic Link", ja: "マジックリンク" },
+  "auth.magicLink.title": {
+    en: "Sign in with Magic Link",
+    ja: "マジックリンクでサインイン",
+  },
+  "auth.magicLink.subtitle": {
+    en: "We'll send you a secure link to sign in",
+    ja: "サインインするための安全なリンクを送信します",
+  },
+  "auth.magicLink.emailLabel": { en: "Email address", ja: "メールアドレス" },
+  "auth.magicLink.sendLink": {
+    en: "Send Magic Link",
+    ja: "マジックリンク送信",
+  },
+  "auth.magicLink.sending": {
+    en: "Sending link...",
+    ja: "リンクを送信中...",
+  },
+  "auth.magicLink.sent": {
+    en: "Check your email for the magic link",
+    ja: "メールでマジックリンクを確認してください",
+  },
+  "auth.magicLink.verifying": {
+    en: "Verifying Magic Link",
+    ja: "マジックリンク検証中",
+  },
+  "auth.magicLink.verifyingMsg": {
+    en: "Please wait while we verify your link...",
+    ja: "リンクを検証中です。お待ちください...",
+  },
+  "auth.magicLink.verifyingMsg2": {
+    en: "Verifying magic link...",
+    ja: "マジックリンクを検証中...",
+  },
+  "auth.magicLink.noToken": {
+    en: "No magic link token provided",
+    ja: "マジックリンクトークンが提供されていません",
+  },
+  "auth.magicLink.invalidOrExpired": {
+    en: "Invalid or expired magic link",
+    ja: "マジックリンクが無効または期限切れです",
+  },
   "profile.title": { en: "My Profile", ja: "マイプロフィール" },
   "profile.update": { en: "Update Profile", ja: "プロフィール更新" },
   "profile.subtitle": {
@@ -744,6 +844,203 @@ const dict: Dict = {
   "role.ADMIN": { en: "Admin", ja: "管理者" },
   "role.BANKOFFICER": { en: "Bank Officer", ja: "銀行員" },
   "role.STAFF": { en: "Staff", ja: "スタッフ" },
+  "accounts.create.title": {
+    en: "Create FD Account",
+    ja: "定期預金口座を開設",
+  },
+  "accounts.create.button": { en: "Create Account", ja: "口座を開設" },
+  "accounts.create.openAccount": { en: "Open Account", ja: "口座開設" },
+  "accounts.create.selectCustomer": { en: "Select Customer", ja: "顧客を選択" },
+  "accounts.create.selectCustomerDescription": {
+    en: "Choose the customer for whom you want to open an account",
+    ja: "口座を開設する顧客を選択してください",
+  },
+  "accounts.create.customer": { en: "Customer", ja: "顧客" },
+  "accounts.create.selectCustomerPlaceholder": {
+    en: "Select a customer",
+    ja: "顧客を選択",
+  },
+  "accounts.create.loadingCustomers": {
+    en: "Loading customers...",
+    ja: "顧客を読み込み中...",
+  },
+  "accounts.create.noCustomers": {
+    en: "No customers available",
+    ja: "利用可能な顧客がいません",
+  },
+  "accounts.create.description": {
+    en: "Create a new Fixed Deposit account with standard or custom parameters",
+    ja: "標準またはカスタムパラメータで新しい定期預金口座を作成",
+  },
+  "accounts.create.standardTab": {
+    en: "Standard Account",
+    ja: "標準口座",
+  },
+  "accounts.create.customTab": { en: "Custom Account", ja: "カスタム口座" },
+  "accounts.create.productDefaults": {
+    en: "Product Defaults",
+    ja: "商品デフォルト",
+  },
+  "accounts.create.flexible": { en: "Flexible", ja: "柔軟" },
+  "accounts.create.standardTitle": {
+    en: "Standard FD Account",
+    ja: "標準定期預金口座",
+  },
+  "accounts.create.standardDescription": {
+    en: "Create account with default interest rate and tenure from the selected product. Both standard account number and IBAN will be generated automatically.",
+    ja: "選択した商品のデフォルトの金利と期間で口座を作成します。標準口座番号とIBANが自動的に生成されます。",
+  },
+  "accounts.create.customTitle": {
+    en: "Custom FD Account",
+    ja: "カスタム定期預金口座",
+  },
+  "accounts.create.customDescription": {
+    en: "Create account with custom interest rate and tenure within product limits. Both standard account number and IBAN will be generated automatically.",
+    ja: "商品制限内でカスタム金利と期間で口座を作成します。標準口座番号とIBANが自動的に生成されます。",
+  },
+  "accounts.create.customerId": { en: "Customer ID", ja: "顧客ID" },
+  "accounts.create.customerIdPlaceholder": {
+    en: "Enter customer ID",
+    ja: "顧客IDを入力",
+  },
+  "accounts.create.product": { en: "Product", ja: "商品" },
+  "accounts.create.selectProduct": {
+    en: "Select a product",
+    ja: "商品を選択",
+  },
+  "accounts.create.loadingProducts": {
+    en: "Loading products...",
+    ja: "商品を読み込み中...",
+  },
+  "accounts.create.productDefaultsLabel": {
+    en: "Product Defaults:",
+    ja: "商品デフォルト：",
+  },
+  "accounts.create.productLimitsLabel": {
+    en: "Product Limits:",
+    ja: "商品制限：",
+  },
+  "accounts.create.interestRate": { en: "Interest Rate", ja: "金利" },
+  "accounts.create.tenure": { en: "Tenure", ja: "期間" },
+  "accounts.create.range": { en: "Range", ja: "範囲" },
+  "accounts.create.amount": { en: "Amount", ja: "金額" },
+  "accounts.create.principalAmount": {
+    en: "Principal Amount (CashCached Tokens)",
+    ja: "元本金額（CashCachedトークン）",
+  },
+  "accounts.create.principalAmountPlaceholder": {
+    en: "Enter principal amount",
+    ja: "元本金額を入力",
+  },
+  "accounts.create.customInterestRate": {
+    en: "Custom Interest Rate (%)",
+    ja: "カスタム金利（％）",
+  },
+  "accounts.create.customTenure": {
+    en: "Custom Tenure (Months)",
+    ja: "カスタム期間（月）",
+  },
+  "accounts.create.branchCode": { en: "Branch Code", ja: "支店コード" },
+  "accounts.create.branchCodeHint": {
+    en: "Alphanumeric uppercase (3-20 characters)",
+    ja: "英数字大文字（3-20文字）",
+  },
+  "accounts.create.remarks": { en: "Remarks (Optional)", ja: "備考（任意）" },
+  "accounts.create.remarksPlaceholder": {
+    en: "Additional notes or remarks",
+    ja: "追加のメモまたは備考",
+  },
+  "accounts.create.creating": {
+    en: "Creating Account...",
+    ja: "口座を作成中...",
+  },
+  "accounts.create.createStandard": {
+    en: "Create Standard Account",
+    ja: "標準口座を作成",
+  },
+  "accounts.create.createCustom": {
+    en: "Create Custom Account",
+    ja: "カスタム口座を作成",
+  },
+  "accounts.create.successDefault": {
+    en: "Account created successfully with product defaults!",
+    ja: "商品デフォルトで口座が正常に作成されました！",
+  },
+  "accounts.create.successCustom": {
+    en: "Account created successfully with custom values!",
+    ja: "カスタム値で口座が正常に作成されました！",
+  },
+  "accounts.create.error": {
+    en: "Failed to create account",
+    ja: "口座の作成に失敗しました",
+  },
+  "admin.accounts.title": { en: "All Accounts", ja: "すべての口座" },
+  "admin.accounts.description": {
+    en: "Manage and view all customer accounts with advanced filters and pagination",
+    ja: "高度なフィルターとページネーションですべての顧客口座を管理・表示",
+  },
+  "admin.accounts.filters": { en: "Filters", ja: "フィルター" },
+  "admin.accounts.filtersDescription": {
+    en: "Search and filter accounts by various criteria",
+    ja: "さまざまな条件で口座を検索・フィルタリング",
+  },
+  "admin.accounts.customerId": { en: "Customer ID", ja: "顧客ID" },
+  "admin.accounts.customerIdPlaceholder": {
+    en: "Enter customer ID",
+    ja: "顧客IDを入力",
+  },
+  "admin.accounts.productCode": { en: "Product Code", ja: "商品コード" },
+  "admin.accounts.productCodePlaceholder": {
+    en: "Enter product code",
+    ja: "商品コードを入力",
+  },
+  "admin.accounts.status": { en: "Status", ja: "ステータス" },
+  "admin.accounts.statusPlaceholder": {
+    en: "Select status",
+    ja: "ステータスを選択",
+  },
+  "admin.accounts.allStatus": { en: "All Status", ja: "すべてのステータス" },
+  "admin.accounts.active": { en: "Active", ja: "アクティブ" },
+  "admin.accounts.closed": { en: "Closed", ja: "閉鎖" },
+  "admin.accounts.matured": { en: "Matured", ja: "満期" },
+  "admin.accounts.suspended": { en: "Suspended", ja: "停止中" },
+  "admin.accounts.branchCode": { en: "Branch Code", ja: "支店コード" },
+  "admin.accounts.branchCodePlaceholder": {
+    en: "Enter branch code",
+    ja: "支店コードを入力",
+  },
+  "admin.accounts.list": { en: "Accounts List", ja: "口座リスト" },
+  "admin.accounts.showing": {
+    en: "Showing {{from}} to {{to}} of {{total}} accounts",
+    ja: "{{total}}件中{{from}}〜{{to}}件を表示",
+  },
+  "admin.accounts.pageSize": { en: "Per page", ja: "件数" },
+  "admin.accounts.accountNo": { en: "Account No", ja: "口座番号" },
+  "admin.accounts.principal": { en: "Principal", ja: "元本" },
+  "admin.accounts.interestRate": { en: "Interest Rate", ja: "金利" },
+  "admin.accounts.tenure": { en: "Tenure", ja: "期間" },
+  "admin.accounts.actions": { en: "Actions", ja: "操作" },
+  "admin.accounts.noAccounts": {
+    en: "No accounts found",
+    ja: "口座が見つかりません",
+  },
+  "admin.accounts.page": {
+    en: "Page {{current}} of {{total}}",
+    ja: "{{total}}ページ中{{current}}ページ",
+  },
+  "action.search": { en: "Search", ja: "検索" },
+  "action.reset": { en: "Reset", ja: "リセット" },
+  "action.previous": { en: "Previous", ja: "前へ" },
+  "action.next": { en: "Next", ja: "次へ" },
+  "action.details": { en: "Details", ja: "詳細" },
+  "nav.administration": { en: "Administration", ja: "管理" },
+  "common.loading": { en: "Loading...", ja: "読み込み中..." },
+  "common.min": { en: "Min", ja: "最小" },
+  "common.max": { en: "Max", ja: "最大" },
+  "common.tokens": { en: "tokens", ja: "トークン" },
+  "common.optional": { en: "Optional", ja: "任意" },
+  "common.range": { en: "Range", ja: "範囲" },
+  "common.cancel": { en: "Cancel", ja: "キャンセル" },
 };
 
 interface I18nContextType {
@@ -755,7 +1052,17 @@ interface I18nContextType {
 const I18nContext = createContext<I18nContextType | undefined>(undefined);
 
 export function I18nProvider({ children }: { children: ReactNode }) {
-  const [lang, setLang] = useState<Lang>("en");
+  const [lang, setLang] = useState<Lang>(() => {
+    if (typeof window === "undefined") return "en";
+    const saved = localStorage.getItem("i18n-lang");
+    return (saved as Lang) || "en";
+  });
+
+  useEffect(() => {
+    localStorage.setItem("i18n-lang", lang);
+    document.documentElement.lang = lang;
+  }, [lang]);
+
   const missing = useMemo(() => new Set<string>(), []);
 
   const t = (key: string) => {

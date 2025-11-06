@@ -47,7 +47,6 @@ class CustomerControllerTest {
         void setUp() {
                 profileResponse = UserProfileResponse.builder()
                                 .id(1L)
-                                .username("testuser")
                                 .fullName("Test User")
                                 .email("test@example.com")
                                 .phoneNumber("+1234567890")
@@ -65,7 +64,6 @@ class CustomerControllerTest {
 
                 mockUser = User.builder()
                                 .id(1L)
-                                .username("testuser")
                                 .fullName("Test User")
                                 .email("test@example.com")
                                 .role(User.Role.CUSTOMER)
@@ -96,7 +94,6 @@ class CustomerControllerTest {
                                 profileResponse,
                                 UserProfileResponse.builder()
                                                 .id(2L)
-                                                .username("customer2")
                                                 .fullName("Customer Two")
                                                 .email("customer2@example.com")
                                                 .role("CUSTOMER")
@@ -135,7 +132,6 @@ class CustomerControllerTest {
         void shouldUpdateProfileSuccessfully() throws Exception {
                 UserProfileResponse updatedResponse = UserProfileResponse.builder()
                                 .id(1L)
-                                .username("testuser")
                                 .fullName("Updated Name")
                                 .email("updated@example.com")
                                 .phoneNumber("+9876543210")

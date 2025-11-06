@@ -10,6 +10,7 @@ import { AppLayout } from "./components/layout/AppLayout";
 import { Landing } from "./pages/Landing";
 import { Login } from "./pages/auth/Login";
 import { Register } from "./pages/auth/Register";
+import { MagicLinkVerify } from "./pages/auth/MagicLinkVerify";
 import { Dashboard } from "./pages/Dashboard";
 import { CustomerProfile } from "./pages/customer/CustomerProfile";
 import { ProductList } from "./pages/products/ProductList";
@@ -17,7 +18,10 @@ import { ProductForm } from "./pages/products/ProductForm";
 import { FdCalculator } from "./pages/fd/FdCalculator";
 import { AccountsList } from "./pages/accounts/AccountsList";
 import { AccountDetails } from "./pages/accounts/AccountDetails";
+import { RedemptionPage } from "./pages/accounts/RedemptionPage";
+import { CreateAccount } from "./pages/accounts/CreateAccount";
 import { AdminDashboard } from "./pages/admin/AdminDashboard";
+import { AdminAccountsList } from "./pages/admin/AdminAccountsList";
 import { CashCachedDashboard } from "./pages/financials/CashCachedDashboard";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 
@@ -28,6 +32,7 @@ function App() {
         attribute="class"
         defaultTheme="light"
         enableSystem={false}
+        forcedTheme="light"
       >
         <I18nProvider>
           <AuthProvider>
@@ -42,6 +47,10 @@ function App() {
                         <Login />
                       </ProtectedAuthRoute>
                     }
+                  />
+                  <Route
+                    path="/auth/magic-link"
+                    element={<MagicLinkVerify />}
                   />
                   <Route
                     path="/register"
@@ -84,14 +93,26 @@ function App() {
                               element={<AccountsList />}
                             />
                             <Route
+                              path="/accounts/new"
+                              element={<CreateAccount />}
+                            />
+                            <Route
                               path="/accounts/:id"
                               element={<AccountDetails />}
+                            />
+                            <Route
+                              path="/accounts/:id/redemption"
+                              element={<RedemptionPage />}
                             />
                             <Route
                               path="/financials/stablecoin"
                               element={<CashCachedDashboard />}
                             />
                             <Route path="/admin" element={<AdminDashboard />} />
+                            <Route
+                              path="/admin/accounts"
+                              element={<AdminAccountsList />}
+                            />
                           </Routes>
                         </AppLayout>
                       </RequireAuth>
