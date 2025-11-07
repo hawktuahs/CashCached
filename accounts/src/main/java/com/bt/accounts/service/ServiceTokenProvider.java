@@ -66,11 +66,13 @@ public class ServiceTokenProvider {
         if (!StringUtils.hasText(loginEndpoint)) {
             throw new ServiceIntegrationException("Customer auth service URL is not configured");
         }
-        if (!StringUtils.hasText(authProperties.getUsername()) || !StringUtils.hasText(authProperties.getPassword())) {
+        String email = authProperties.getUsername();
+        String password = authProperties.getPassword();
+        if (!StringUtils.hasText(email) || !StringUtils.hasText(password)) {
             throw new ServiceIntegrationException("Customer service credentials are not configured");
         }
 
-        LoginRequest payload = new LoginRequest(authProperties.getUsername(), authProperties.getPassword());
+        LoginRequest payload = new LoginRequest(email, password);
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         HttpEntity<LoginRequest> entity = new HttpEntity<>(payload, headers);
@@ -120,7 +122,7 @@ public class ServiceTokenProvider {
         }
     }
 
-    private record LoginRequest(String username, String password) {
+    private record LoginRequest(String email, String password) {
     }
 
     private static class AuthResponse {

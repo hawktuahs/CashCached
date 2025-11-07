@@ -67,8 +67,8 @@ services:
     url: ${SERVICES_PRODUCT_URL:http://localhost:8082}
   customer:
     url: ${SERVICES_CUSTOMER_URL:http://localhost:8081}
-    username: ${SERVICES_CUSTOMER_USERNAME:admin}
-    password: ${SERVICES_CUSTOMER_PASSWORD:abc123}
+    username: ${SERVICES_CUSTOMER_USERNAME:accounts-service@cashcached.local}
+    password: ${SERVICES_CUSTOMER_PASSWORD:ChangeMe123!}
 
 accounts:
   sequence:

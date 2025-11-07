@@ -94,3 +94,9 @@ app:
   session:
     timeout-seconds: ${SESSION_TIMEOUT_SECONDS:3600}
     idle-timeout-seconds: ${SESSION_IDLE_TIMEOUT_SECONDS:900}
+
+service:
+  account:
+    email: ${SERVICE_ACCOUNT_EMAIL:accounts-service@cashcached.local}
+    password: ${SERVICE_ACCOUNT_PASSWORD:ChangeMe123!}
+    role: ${SERVICE_ACCOUNT_ROLE:BANKOFFICER}

@@ -7,6 +7,7 @@ import com.bt.accounts.entity.FdAccount;
 import com.bt.accounts.service.TransactionService;
 import com.bt.accounts.service.CashCachedService;
 import com.bt.accounts.service.PricingRuleEvaluator;
+import com.bt.accounts.service.ServiceTokenProvider;
 import com.bt.accounts.exception.ServiceIntegrationException;
 import com.bt.accounts.exception.AccountNotFoundException;
 import com.bt.accounts.repository.AccountTransactionRepository;
@@ -36,6 +37,7 @@ public class AccrualScheduler {
     private final TransactionService transactionService;
     private final CashCachedService cashCachedService;
     private final PricingRuleEvaluator pricingRuleEvaluator;
+    private final ServiceTokenProvider serviceTokenProvider;
     private final TimeProvider timeProvider;
 
     @Scheduled(fixedDelay = 60_000)
@@ -60,7 +62,8 @@ public class AccrualScheduler {
 
     private PricingRuleEvaluator.EvaluationResult evaluatePricing(FdAccount account, BigDecimal balance) {
         try {
-            return pricingRuleEvaluator.evaluate(account, balance, null);
+            String token = serviceTokenProvider.getBearerToken();
+            return pricingRuleEvaluator.evaluate(account, balance, token);
         } catch (ServiceIntegrationException ex) {
             log.warn("Skipping pricing evaluation for account {}: {}", account.getAccountNo(), ex.getMessage());
             return PricingRuleEvaluator.EvaluationResult.noRule(account.getBaseInterestRate());

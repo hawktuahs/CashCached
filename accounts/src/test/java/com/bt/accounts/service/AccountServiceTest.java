@@ -2,6 +2,7 @@ package com.bt.accounts.service;
 
 import com.bt.accounts.client.*;
 import com.bt.accounts.dto.*;
+import com.bt.accounts.entity.AccountTransaction;
 import com.bt.accounts.entity.FdAccount;
 import com.bt.accounts.exception.*;
 import com.bt.accounts.event.*;
@@ -281,6 +282,37 @@ class AccountServiceTest {
                                 .thenReturn(Optional.empty());
 
                 assertThrows(AccountNotFoundException.class, () -> accountService.getAccount("INVALID"));
+        }
+
+        @Test
+        void getAccount_ShouldReflectLatestBalanceAndAccruedInterest() {
+                FdAccount account = FdAccount.builder()
+                                .id(1L)
+                                .accountNo("ACC123")
+                                .customerId("CUST1")
+                                .principalAmount(new BigDecimal("1000"))
+                                .interestRate(new BigDecimal("5"))
+                                .status(FdAccount.AccountStatus.ACTIVE)
+                                .build();
+
+                AccountTransaction latestTxn = AccountTransaction.builder()
+                                .transactionId("TXN-ACC123")
+                                .accountNo("ACC123")
+                                .transactionType(AccountTransaction.TransactionType.INTEREST_CREDIT)
+                                .amount(new BigDecimal("500"))
+                                .balanceAfter(new BigDecimal("1500"))
+                                .build();
+
+                when(accountRepository.findByAccountNo("ACC123"))
+                                .thenReturn(Optional.of(account));
+                when(transactionRepository.findByAccountNoOrderByTransactionDateDesc("ACC123"))
+                                .thenReturn(Collections.singletonList(latestTxn));
+
+                AccountResponse response = accountService.getAccount("ACC123");
+
+                assertNotNull(response);
+                assertEquals(new BigDecimal("1500"), response.getCurrentBalance());
+                assertEquals(new BigDecimal("500"), response.getAccruedInterest());
         }
 
         @Test

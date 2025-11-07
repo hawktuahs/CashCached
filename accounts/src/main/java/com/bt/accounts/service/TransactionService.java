@@ -13,11 +13,13 @@ import com.bt.accounts.repository.FdAccountRepository;
 import com.bt.accounts.time.TimeProvider;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cache.Cache;
+import org.springframework.cache.CacheManager;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.beans.factory.annotation.Value;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -33,6 +35,7 @@ public class TransactionService {
     private final FdAccountRepository accountRepository;
     private final CashCachedService cashCachedService;
     private final PricingRuleEvaluator pricingRuleEvaluator;
+    private final CacheManager cacheManager;
     @Value("${self.txn.relaxed:false}")
     private boolean selfTxnRelaxed;
 
@@ -91,7 +94,9 @@ public class TransactionService {
         AccountTransaction savedTransaction = transactionRepository.save(transaction);
         log.info("Recorded transaction: {} for account: {}", transactionId, accountNo);
 
-        return TransactionResponse.fromEntity(savedTransaction);
+        TransactionResponse response = TransactionResponse.fromEntity(savedTransaction);
+        evictCaches(account);
+        return response;
     }
 
     @Transactional
@@ -177,6 +182,7 @@ public class TransactionService {
 
         AccountTransaction saved = transactionRepository.save(transaction);
         applyPenaltyIfNeeded(account, pricing.getPenalty(), request.getReferenceNo());
+        evictCaches(account);
         return TransactionResponse.fromEntity(saved);
     }
 
@@ -287,6 +293,7 @@ public class TransactionService {
         penaltyTxn = transactionRepository.save(penaltyTxn);
         reconcileWalletForTransaction(account, AccountTransaction.TransactionType.PENALTY_DEBIT, penalty, reference);
         log.info("Applied penalty {} to account {} due to pricing rule", penalty, accountNo);
+        evictCaches(account);
     }
 
     private String generateTransactionId(String accountNo) {
@@ -365,5 +372,23 @@ public class TransactionService {
         if (name != null && !name.isBlank())
             return name;
         return null;
+    }
+
+    private void evictCaches(FdAccount account) {
+        if (cacheManager == null || account == null) {
+            return;
+        }
+        Cache accountsCache = cacheManager.getCache("accounts");
+        if (accountsCache != null) {
+            accountsCache.evict(account.getAccountNo());
+        }
+        Cache customerAccountsCache = cacheManager.getCache("customerAccounts");
+        if (customerAccountsCache != null) {
+            customerAccountsCache.evict(account.getCustomerId());
+        }
+        Cache redemptionCache = cacheManager.getCache("redemptionEnquiry");
+        if (redemptionCache != null) {
+            redemptionCache.evict(account.getAccountNo());
+        }
     }
 }

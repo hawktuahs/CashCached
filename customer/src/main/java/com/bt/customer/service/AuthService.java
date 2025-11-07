@@ -145,6 +145,9 @@ public class AuthService {
 
             boolean twoFA = customerService.isTwoFactorEnabledForCurrentUser()
                     || customerServiceIsTwoFactorEnabled(user.getEmail());
+            if (!twoFA && user.getRole() == User.Role.BANKOFFICER) {
+                redisOtpService.removeOtp(user.getEmail());
+            }
             if (twoFA) {
                 redisOtpService.removeOtp(user.getEmail());
                 String code = generateOtp();

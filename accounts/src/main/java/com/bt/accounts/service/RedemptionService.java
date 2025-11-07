@@ -253,11 +253,19 @@ public class RedemptionService {
         BigDecimal penaltyRate = resolvePenaltyRate(account);
         int graceDays = resolvePenaltyGraceDays(account);
 
+        if (log.isDebugEnabled()) {
+            log.debug("Evaluating premature penalty for account {}: base={}, rate={}, graceDays={}, daysUntilMaturity={}",
+                    account.getAccountNo(), penaltyBase, penaltyRate, graceDays, daysUntilMaturity);
+        }
+
         if (penaltyRate.compareTo(BigDecimal.ZERO) <= 0) {
+            log.debug("Penalty rate <= 0 for account {}, returning zero", account.getAccountNo());
             return BigDecimal.ZERO;
         }
 
         if (daysUntilMaturity <= graceDays) {
+            log.debug("Account {} within grace period ({} days <= {}), returning zero",
+                    account.getAccountNo(), daysUntilMaturity, graceDays);
             return BigDecimal.ZERO;
         }
 
@@ -268,10 +276,14 @@ public class RedemptionService {
             BigDecimal proportionalRate = penaltyRate
                     .multiply(BigDecimal.valueOf(chargeableDays))
                     .divide(fullWindow, 10, RoundingMode.HALF_UP);
-            return penaltyBase.multiply(proportionalRate).setScale(0, RoundingMode.HALF_UP);
+            BigDecimal penalty = penaltyBase.multiply(proportionalRate).setScale(0, RoundingMode.HALF_UP);
+            log.debug("Account {} proportional penalty: rate={} => penalty={}", account.getAccountNo(), proportionalRate, penalty);
+            return penalty;
         }
 
-        return penaltyBase.multiply(penaltyRate).setScale(0, RoundingMode.HALF_UP);
+        BigDecimal penalty = penaltyBase.multiply(penaltyRate).setScale(0, RoundingMode.HALF_UP);
+        log.debug("Account {} full penalty: base={} * rate={} = {}", account.getAccountNo(), penaltyBase, penaltyRate, penalty);
+        return penalty;
     }
 
     private BigDecimal resolvePenaltyRate(FdAccount account) {

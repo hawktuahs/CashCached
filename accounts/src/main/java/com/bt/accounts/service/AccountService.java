@@ -1,6 +1,7 @@
 package com.bt.accounts.service;
 
 import com.bt.accounts.client.*;
+import com.bt.accounts.config.PricingServiceProperties;
 import com.bt.accounts.dto.*;
 import com.bt.accounts.entity.FdAccount;
 import com.bt.accounts.entity.AccountTransaction;
@@ -10,6 +11,12 @@ import com.bt.accounts.event.*;
 import com.bt.accounts.repository.FdAccountRepository;
 import com.bt.accounts.repository.AccountTransactionRepository;
 import com.bt.accounts.time.TimeProvider;
+import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -19,6 +26,10 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
+import org.springframework.web.client.RestClientException;
+import org.springframework.web.client.RestTemplate;
+import org.springframework.web.util.UriComponentsBuilder;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -33,6 +44,10 @@ import java.math.RoundingMode;
 @Slf4j
 public class AccountService {
 
+    private static final ParameterizedTypeReference<ApiResponse<FetchedProductResponse>> PRODUCT_RESPONSE_TYPE =
+            new ParameterizedTypeReference<>() {
+            };
+
     private final FdAccountRepository accountRepository;
     private final AccountTransactionRepository transactionRepository;
     private final CashCachedService cashCachedService;
@@ -40,6 +55,9 @@ public class AccountService {
     private final AccountNumberGenerator accountNumberGenerator;
     private final KafkaProducerService kafkaProducerService;
     private final RedisRequestResponseStore requestResponseStore;
+    private final RestTemplate restTemplate;
+    private final PricingServiceProperties pricingServiceProperties;
+    private final ServiceTokenProvider serviceTokenProvider;
 
     @Value("${accounts.sequence.prefix:FD}")
     private String accountPrefix;
@@ -53,7 +71,7 @@ public class AccountService {
         validateUserRole();
 
         validateCustomer(request.getCustomerId(), authToken);
-        ProductDto product = validateProduct(request.getProductCode(), authToken);
+        ProductDto product = fetchProduct(request.getProductCode(), authToken);
 
         validateProductRules(request, product);
 
@@ -134,7 +152,7 @@ public class AccountService {
             newPrincipal = new BigDecimal(String.valueOf(request.get("principalAmount")));
         }
 
-        ProductDto product = validateProduct(newProductCode, authToken);
+        ProductDto product = fetchProduct(newProductCode, authToken);
 
         AccountCreationRequest temp = AccountCreationRequest.builder()
                 .customerId(account.getCustomerId())
@@ -350,6 +368,102 @@ public class AccountService {
         }
     }
 
+    private ProductDto fetchProduct(String productCode, String authToken) {
+        ProductDto product = validateProduct(productCode, authToken);
+        if (product.getPrematurePenaltyRate() != null && product.getPrematurePenaltyGraceDays() != null) {
+            return product;
+        }
+        log.warn("Product {} missing penalty data from Kafka response. Attempting REST fallback", productCode);
+        try {
+            ProductDto refreshed = fetchProductDirect(productCode, authToken);
+            if (refreshed.getPrematurePenaltyRate() != null
+                    && refreshed.getPrematurePenaltyGraceDays() != null) {
+                log.info("Product {} penalty refreshed via REST: rate={}, graceDays={}",
+                        productCode, refreshed.getPrematurePenaltyRate(),
+                        refreshed.getPrematurePenaltyGraceDays());
+                return refreshed;
+            }
+            log.warn("Product {} REST fallback still missing penalty data", productCode);
+        } catch (ServiceIntegrationException ex) {
+            log.warn("Product {} REST fallback failed: {}", productCode, ex.getMessage());
+        }
+        return product;
+    }
+
+    private ProductDto fetchProductDirect(String productCode, String authToken) {
+        String baseUrl = pricingServiceProperties.getUrl();
+        if (!StringUtils.hasText(baseUrl)) {
+            throw new ServiceIntegrationException("Pricing service base URL is not configured");
+        }
+
+        String url = UriComponentsBuilder.fromHttpUrl(baseUrl)
+                .path("/api/v1/product/{code}")
+                .buildAndExpand(productCode)
+                .toUriString();
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setAccept(List.of(MediaType.APPLICATION_JSON));
+        headers.setBearerAuth(resolveBearerToken(authToken));
+
+        HttpEntity<Void> entity = new HttpEntity<>(headers);
+        try {
+            ResponseEntity<ApiResponse<FetchedProductResponse>> response = restTemplate.exchange(
+                    url,
+                    HttpMethod.GET,
+                    entity,
+                    PRODUCT_RESPONSE_TYPE);
+
+            ApiResponse<FetchedProductResponse> body = response.getBody();
+            if (body == null || !Boolean.TRUE.equals(body.getSuccess())) {
+                String message = body != null ? body.getMessage() : "empty body";
+                throw new ServiceIntegrationException(
+                        "Product service REST call failed for code " + productCode + ": " + message);
+            }
+
+            FetchedProductResponse data = body.getData();
+            if (data == null) {
+                throw new ServiceIntegrationException(
+                        "Product service REST call returned null data for code " + productCode);
+            }
+
+            return ProductDto.builder()
+                    .id(data.getId())
+                    .productCode(data.getProductCode())
+                    .productName(data.getProductName())
+                    .productType(data.getProductType())
+                    .description(data.getDescription())
+                    .minInterestRate(data.getMinInterestRate())
+                    .maxInterestRate(data.getMaxInterestRate())
+                    .minTermMonths(data.getMinTermMonths())
+                    .maxTermMonths(data.getMaxTermMonths())
+                    .minAmount(data.getMinAmount())
+                    .maxAmount(data.getMaxAmount())
+                    .currency(data.getCurrency())
+                    .status(data.getStatus())
+                    .prematurePenaltyRate(data.getPrematurePenaltyRate())
+                    .prematurePenaltyGraceDays(data.getPrematurePenaltyGraceDays())
+                    .build();
+        } catch (RestClientException ex) {
+            throw new ServiceIntegrationException("Failed to fetch product " + productCode + " via REST", ex);
+        }
+    }
+
+    private String resolveBearerToken(String authToken) {
+        if (StringUtils.hasText(authToken)) {
+            String candidate = authToken.trim();
+            return candidate.startsWith("Bearer ") ? candidate.substring(7) : candidate;
+        }
+        if (pricingServiceProperties.getToken() != null && StringUtils.hasText(pricingServiceProperties.getToken())) {
+            String candidate = pricingServiceProperties.getToken().trim();
+            return candidate.startsWith("Bearer ") ? candidate.substring(7) : candidate;
+        }
+        String serviceToken = serviceTokenProvider.getBearerToken();
+        if (!StringUtils.hasText(serviceToken)) {
+            throw new ServiceIntegrationException("Missing authorization token for product service");
+        }
+        return serviceToken.startsWith("Bearer ") ? serviceToken.substring(7) : serviceToken;
+    }
+
     private ProductDto validateProduct(String productCode, String authToken) {
         String requestId = UUID.randomUUID().toString();
         ProductDetailsRequest request = ProductDetailsRequest.builder()
@@ -500,13 +614,13 @@ public class AccountService {
         BigDecimal principal = account.getPrincipalAmount() != null ? account.getPrincipalAmount() : BigDecimal.ZERO;
         BigDecimal currentBalance = principal;
         try {
-            currentBalance = computeCurrentBalance(account.getAccountNo());
-            response.setCurrentBalance(currentBalance);
+            BigDecimal latestBalance = computeCurrentBalance(account.getAccountNo());
+            currentBalance = latestBalance;
         } catch (Exception ex) {
             log.warn("Unable to compute current balance for account {}: {}", account.getAccountNo(), ex.getMessage());
-            response.setCurrentBalance(currentBalance);
         }
 
+        response.setCurrentBalance(currentBalance);
         BigDecimal accruedInterest = currentBalance.subtract(principal);
         if (accruedInterest.compareTo(BigDecimal.ZERO) < 0) {
             accruedInterest = BigDecimal.ZERO;
@@ -537,13 +651,157 @@ public class AccountService {
                 : 0;
     }
 
+    private static class FetchedProductResponse {
+        private Long id;
+        private String productCode;
+        private String productName;
+        private String productType;
+        private String description;
+        private BigDecimal minInterestRate;
+        private BigDecimal maxInterestRate;
+        private Integer minTermMonths;
+        private Integer maxTermMonths;
+        private BigDecimal minAmount;
+        private BigDecimal maxAmount;
+        private String currency;
+        private String status;
+        private BigDecimal prematurePenaltyRate;
+        private Integer prematurePenaltyGraceDays;
+
+        public Long getId() {
+            return id;
+        }
+
+        public void setId(Long id) {
+            this.id = id;
+        }
+
+        public String getProductCode() {
+            return productCode;
+        }
+
+        public void setProductCode(String productCode) {
+            this.productCode = productCode;
+        }
+
+        public String getProductName() {
+            return productName;
+        }
+
+        public void setProductName(String productName) {
+            this.productName = productName;
+        }
+
+        public String getProductType() {
+            return productType;
+        }
+
+        public void setProductType(String productType) {
+            this.productType = productType;
+        }
+
+        public String getDescription() {
+            return description;
+        }
+
+        public void setDescription(String description) {
+            this.description = description;
+        }
+
+        public BigDecimal getMinInterestRate() {
+            return minInterestRate;
+        }
+
+        public void setMinInterestRate(BigDecimal minInterestRate) {
+            this.minInterestRate = minInterestRate;
+        }
+
+        public BigDecimal getMaxInterestRate() {
+            return maxInterestRate;
+        }
+
+        public void setMaxInterestRate(BigDecimal maxInterestRate) {
+            this.maxInterestRate = maxInterestRate;
+        }
+
+        public Integer getMinTermMonths() {
+            return minTermMonths;
+        }
+
+        public void setMinTermMonths(Integer minTermMonths) {
+            this.minTermMonths = minTermMonths;
+        }
+
+        public Integer getMaxTermMonths() {
+            return maxTermMonths;
+        }
+
+        public void setMaxTermMonths(Integer maxTermMonths) {
+            this.maxTermMonths = maxTermMonths;
+        }
+
+        public BigDecimal getMinAmount() {
+            return minAmount;
+        }
+
+        public void setMinAmount(BigDecimal minAmount) {
+            this.minAmount = minAmount;
+        }
+
+        public BigDecimal getMaxAmount() {
+            return maxAmount;
+        }
+
+        public void setMaxAmount(BigDecimal maxAmount) {
+            this.maxAmount = maxAmount;
+        }
+
+        public String getCurrency() {
+            return currency;
+        }
+
+        public void setCurrency(String currency) {
+            this.currency = currency;
+        }
+
+        public String getStatus() {
+            return status;
+        }
+
+        public void setStatus(String status) {
+            this.status = status;
+        }
+
+        public BigDecimal getPrematurePenaltyRate() {
+            return prematurePenaltyRate;
+        }
+
+        public void setPrematurePenaltyRate(BigDecimal prematurePenaltyRate) {
+            this.prematurePenaltyRate = prematurePenaltyRate;
+        }
+
+        public Integer getPrematurePenaltyGraceDays() {
+            return prematurePenaltyGraceDays;
+        }
+
+        public void setPrematurePenaltyGraceDays(Integer prematurePenaltyGraceDays) {
+            this.prematurePenaltyGraceDays = prematurePenaltyGraceDays;
+        }
+    }
+
     @Transactional
     @CacheEvict(value = { "accounts", "customerAccounts" }, allEntries = true)
     public AccountResponse createAccountV1(AccountCreationV1Request request, String authToken) {
         validateUserRole();
 
         validateCustomer(request.getCustomerId(), authToken);
-        ProductDto product = validateProduct(request.getProductCode(), authToken);
+
+        ProductDto product = fetchProduct(request.getProductCode(), authToken);
+
+        log.info("[V1] Product {} penalty config: rate={}, graceDays={}",
+                product.getProductCode(),
+                product.getPrematurePenaltyRate(),
+                product.getPrematurePenaltyGraceDays());
 
         BigDecimal principalTokens = requireWholeTokens(request.getPrincipalAmount());
         if (principalTokens.compareTo(BigDecimal.ZERO) <= 0) {
@@ -586,7 +844,20 @@ public class AccountService {
                 .prematurePenaltyGraceDays(resolvePenaltyGraceDays(product))
                 .build();
 
-        FdAccount savedAccount = accountRepository.save(account);
+        log.info("[V1] Creating FD account {} with penalty rate {} and graceDays {}",
+                accountNo,
+                account.getPrematurePenaltyRate(),
+                account.getPrematurePenaltyGraceDays());
+
+        FdAccount pricedAccount = applyInitialPricing(account, principalTokens, authToken);
+        FdAccount savedAccount = accountRepository.save(pricedAccount);
+
+        log.info("[V1] Saved FD account {} penalty persisted as rate={} graceDays={}",
+                savedAccount.getAccountNo(),
+                savedAccount.getPrematurePenaltyRate(),
+                savedAccount.getPrematurePenaltyGraceDays());
+
+        recordInitialDepositTransaction(savedAccount, principalTokens);
         recordContractLedgerEntry(request.getCustomerId(), principalTokens, accountNo);
         log.info("Created V1 FD account (product defaults): {} for customer: {}", accountNo, request.getCustomerId());
 
@@ -599,7 +870,7 @@ public class AccountService {
         validateUserRole();
 
         validateCustomer(request.getCustomerId(), authToken);
-        ProductDto product = validateProduct(request.getProductCode(), authToken);
+        ProductDto product = fetchProduct(request.getProductCode(), authToken);
 
         BigDecimal principalTokens = requireWholeTokens(request.getPrincipalAmount());
         if (principalTokens.compareTo(BigDecimal.ZERO) <= 0) {
@@ -662,7 +933,21 @@ public class AccountService {
                 .prematurePenaltyGraceDays(resolvePenaltyGraceDays(product))
                 .build();
 
+        if (log.isDebugEnabled()) {
+            log.debug("[V2] Creating FD account {} with penalty rate {} and graceDays {}",
+                    accountNo,
+                    account.getPrematurePenaltyRate(),
+                    account.getPrematurePenaltyGraceDays());
+        }
+
         FdAccount savedAccount = accountRepository.save(account);
+
+        if (log.isDebugEnabled()) {
+            log.debug("[V2] Saved FD account {} penalty persisted as rate={} graceDays={}",
+                    savedAccount.getAccountNo(),
+                    savedAccount.getPrematurePenaltyRate(),
+                    savedAccount.getPrematurePenaltyGraceDays());
+        }
 
         recordInitialDepositTransaction(savedAccount, principalTokens);
         recordContractLedgerEntry(request.getCustomerId(), principalTokens, accountNo);
