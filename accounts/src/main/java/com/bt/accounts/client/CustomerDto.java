@@ -24,4 +24,5 @@ public class CustomerDto {
     private String accountStatus;
     private String preferredCurrency;
     private String fullName;
+    private String customerClassification;
 }

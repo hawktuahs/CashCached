@@ -52,6 +52,9 @@ public class PricingRule {
     @Column(name = "is_active")
     private Boolean isActive;
 
+    @Column(name = "customer_classification", length = 50)
+    private String customerClassification;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 

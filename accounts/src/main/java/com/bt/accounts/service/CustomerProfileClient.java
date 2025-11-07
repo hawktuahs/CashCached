@@ -90,6 +90,56 @@ public class CustomerProfileClient {
         }
     }
 
+    public CustomerProfileDto getCustomerProfile(String customerId, String authToken) {
+        if (!StringUtils.hasText(customerId)) {
+            return null;
+        }
+
+        Long id;
+        try {
+            id = Long.parseLong(customerId.trim());
+        } catch (NumberFormatException ex) {
+            log.warn("Invalid customer id supplied for profile lookup: {}", customerId);
+            return null;
+        }
+
+        String baseUrl = StringUtils.trimTrailingCharacter(Objects.toString(authProperties.getUrl(), "").trim(), '/');
+        if (!StringUtils.hasText(baseUrl)) {
+            log.warn("Customer service URL is not configured");
+            return null;
+        }
+
+        String url = baseUrl + "/api/v1/customers/" + id;
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setAccept(List.of(MediaType.APPLICATION_JSON));
+        headers.setBearerAuth(resolveBearerToken(authToken));
+
+        HttpEntity<Void> entity = new HttpEntity<>(headers);
+
+        try {
+            ResponseEntity<ApiResponse<CustomerProfileDto>> response = restTemplate.exchange(
+                    url,
+                    HttpMethod.GET,
+                    entity,
+                    RESPONSE_TYPE);
+
+            ApiResponse<CustomerProfileDto> body = response.getBody();
+            if (body == null) {
+                log.warn("Customer profile response was empty for id {}", id);
+                return null;
+            }
+            if (!Boolean.TRUE.equals(body.getSuccess())) {
+                log.warn("Customer profile lookup for id {} failed: {}", id, body.getMessage());
+                return null;
+            }
+            return body.getData();
+        } catch (RestClientException ex) {
+            log.warn("Customer profile fetch failed for id {}: {}", id, ex.getMessage());
+            return null;
+        }
+    }
+
     private String resolveBearerToken(String authToken) {
         if (StringUtils.hasText(authToken)) {
             String candidate = authToken.trim();
@@ -109,8 +159,9 @@ public class CustomerProfileClient {
         throw new IllegalStateException("Unable to resolve authorization token for customer service");
     }
 
-    private static class CustomerProfileDto {
+    public static class CustomerProfileDto {
         private String preferredCurrency;
+        private String customerClassification;
 
         public String getPreferredCurrency() {
             return preferredCurrency;
@@ -118,6 +169,14 @@ public class CustomerProfileClient {
 
         public void setPreferredCurrency(String preferredCurrency) {
             this.preferredCurrency = preferredCurrency;
+        }
+
+        public String getCustomerClassification() {
+            return customerClassification;
+        }
+
+        public void setCustomerClassification(String customerClassification) {
+            this.customerClassification = customerClassification;
         }
     }
 }

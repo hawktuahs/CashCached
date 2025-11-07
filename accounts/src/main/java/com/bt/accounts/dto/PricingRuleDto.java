@@ -27,6 +27,7 @@ public class PricingRuleDto {
     private BigDecimal discountPercentage;
     private Integer priorityOrder;
     private Boolean isActive;
+    private String customerClassification;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

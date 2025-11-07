@@ -19,13 +19,17 @@ public class PricingRuleEvaluator {
     private final PricingRuleClient pricingRuleClient;
 
     public EvaluationResult evaluate(FdAccount account, BigDecimal balance, String authToken) {
+        return evaluate(account, balance, authToken, null);
+    }
+
+    public EvaluationResult evaluate(FdAccount account, BigDecimal balance, String authToken, String customerClassification) {
         try {
             List<PricingRuleDto> rules = fetchRules(account, authToken);
             if (rules.isEmpty()) {
                 return EvaluationResult.noRule(account.getBaseInterestRate());
             }
             PricingRuleDto matched = rules.stream()
-                    .filter(rule -> matches(rule, balance))
+                    .filter(rule -> matches(rule, balance, customerClassification))
                     .findFirst()
                     .orElse(null);
             if (matched == null) {
@@ -44,14 +48,22 @@ public class PricingRuleEvaluator {
         return pricingRuleClient.fetchActiveRules(account, token);
     }
 
-    private boolean matches(PricingRuleDto rule, BigDecimal balance) {
+    private boolean matches(PricingRuleDto rule, BigDecimal balance, String customerClassification) {
         if (rule.getMinThreshold() != null && balance.compareTo(rule.getMinThreshold()) < 0) {
             return false;
         }
         if (rule.getMaxThreshold() != null && balance.compareTo(rule.getMaxThreshold()) > 0) {
             return false;
         }
-        return Boolean.TRUE.equals(rule.getIsActive());
+        if (!Boolean.TRUE.equals(rule.getIsActive())) {
+            return false;
+        }
+        if (rule.getCustomerClassification() != null && !rule.getCustomerClassification().isEmpty()) {
+            if (customerClassification == null || !rule.getCustomerClassification().equalsIgnoreCase(customerClassification)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private BigDecimal resolveRate(BigDecimal baseRate, PricingRuleDto rule) {

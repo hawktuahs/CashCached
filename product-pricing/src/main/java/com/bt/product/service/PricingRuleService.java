@@ -20,7 +20,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class PricingRuleService {
 
-    private final PricingRuleRepository pricingRuleRepository;
+    private final PricingRuleRepository pricingRuleRepository;~
     private final ProductRepository productRepository;
 
     @Transactional
@@ -42,6 +42,7 @@ public class PricingRuleService {
                 .discountPercentage(request.getDiscountPercentage())
                 .priorityOrder(request.getPriorityOrder())
                 .isActive(request.getIsActive() != null ? request.getIsActive() : true)
+                .customerClassification(request.getCustomerClassification())
                 .build();
 
         PricingRule savedRule = pricingRuleRepository.save(pricingRule);
@@ -64,6 +65,7 @@ public class PricingRuleService {
         pricingRule.setDiscountPercentage(request.getDiscountPercentage());
         pricingRule.setPriorityOrder(request.getPriorityOrder());
         pricingRule.setIsActive(request.getIsActive());
+        pricingRule.setCustomerClassification(request.getCustomerClassification());
 
         PricingRule updatedRule = pricingRuleRepository.save(pricingRule);
         return mapToPricingRuleResponse(updatedRule);
@@ -128,6 +130,7 @@ public class PricingRuleService {
                 .discountPercentage(rule.getDiscountPercentage())
                 .priorityOrder(rule.getPriorityOrder())
                 .isActive(rule.getIsActive())
+                .customerClassification(rule.getCustomerClassification())
                 .createdAt(rule.getCreatedAt())
                 .updatedAt(rule.getUpdatedAt())
                 .build();

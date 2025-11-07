@@ -42,4 +42,7 @@ public class PricingRuleRequest {
     private Integer priorityOrder;
 
     private Boolean isActive;
+
+    @Size(max = 50, message = "Customer classification must not exceed 50 characters")
+    private String customerClassification;
 }

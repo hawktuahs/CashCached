@@ -111,6 +111,7 @@ export function AdminDashboard() {
     discountPercentage: 0,
     priorityOrder: 0,
     isActive: true,
+    customerClassification: null,
   };
 
   const refreshSystemTime = async () => {
@@ -933,6 +934,33 @@ export function AdminDashboard() {
                     </SelectContent>
                   </Select>
                 </div>
+                <div>
+                  <label className="text-sm font-medium">
+                    Customer Classification
+                  </label>
+                  <Select
+                    value={ruleForm.customerClassification || "ALL"}
+                    onValueChange={(v) =>
+                      setRuleForm({
+                        ...ruleForm,
+                        customerClassification: v === "ALL" ? null : v,
+                      })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="All customers" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ALL">All customers</SelectItem>
+                      <SelectItem value="MINOR">Minor</SelectItem>
+                      <SelectItem value="REGULAR">Regular</SelectItem>
+                      <SelectItem value="SENIOR_CITIZEN">
+                        Senior Citizen
+                      </SelectItem>
+                      <SelectItem value="PREMIUM">Premium</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
               <div className="flex justify-end gap-2 mt-3">
                 {editingRule && (
@@ -974,6 +1002,13 @@ export function AdminDashboard() {
                     </CardHeader>
                     <CardContent className="space-y-2">
                       <div className="text-sm">{r.ruleDescription}</div>
+                      {r.customerClassification && (
+                        <div className="text-xs">
+                          <Badge variant="outline">
+                            {r.customerClassification}
+                          </Badge>
+                        </div>
+                      )}
                       <div className="text-xs text-muted-foreground">
                         Min: {r.minThreshold} | Max: {r.maxThreshold}
                       </div>
@@ -981,21 +1016,49 @@ export function AdminDashboard() {
                         Rate: {r.interestRate}% | Fee: {r.feeAmount} | Discount:{" "}
                         {r.discountPercentage}%
                       </div>
-                      <div className="flex justify-end gap-2 pt-2">
+                      <div className="flex justify-between items-center gap-2 pt-2">
                         <Button
                           size="sm"
-                          variant="outline"
-                          onClick={() => editRule(r)}
+                          variant={r.isActive ? "default" : "secondary"}
+                          onClick={async () => {
+                            try {
+                              await api.put(`/api/v1/pricing-rule/${r.id}`, {
+                                ...r,
+                                isActive: !r.isActive,
+                              });
+                              const res = await api.get(
+                                `/api/v1/pricing-rule/product/${selectedProductId}`
+                              );
+                              const list = res?.data?.data ?? res?.data ?? [];
+                              setRules(Array.isArray(list) ? list : []);
+                              toast.success(
+                                `Rule ${
+                                  !r.isActive ? "activated" : "deactivated"
+                                }`
+                              );
+                            } catch {
+                              toast.error("Failed to update rule status");
+                            }
+                          }}
                         >
-                          Edit
+                          {r.isActive ? "Active" : "Inactive"}
                         </Button>
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          onClick={() => deleteRule(r.id)}
-                        >
-                          Delete
-                        </Button>
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => editRule(r)}
+                          >
+                            Edit
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => deleteRule(r.id)}
+                          >
+                            Delete
+                          </Button>
+                        </div>
                       </div>
                     </CardContent>
                   </Card>

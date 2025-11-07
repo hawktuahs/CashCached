@@ -40,6 +40,7 @@ public class AccountService {
     private final AccountNumberGenerator accountNumberGenerator;
     private final KafkaProducerService kafkaProducerService;
     private final RedisRequestResponseStore requestResponseStore;
+    private final CustomerProfileClient customerProfileClient;
 
     @Value("${accounts.sequence.prefix:FD}")
     private String accountPrefix;
@@ -291,9 +292,17 @@ public class AccountService {
             balance = BigDecimal.ZERO;
         }
 
+        String customerClassification = null;
+        try {
+            CustomerProfileClient.CustomerProfileDto customer = customerProfileClient.getCustomerProfile(account.getCustomerId(), authToken);
+            customerClassification = customer != null ? customer.getCustomerClassification() : null;
+        } catch (Exception ex) {
+            log.warn("Failed to fetch customer classification for customer {}: {}", account.getCustomerId(), ex.getMessage());
+        }
+
         try {
             PricingRuleEvaluator.EvaluationResult evaluation = pricingRuleEvaluator.evaluate(account, balance,
-                    authToken);
+                    authToken, customerClassification);
             if (evaluation.hasRule()) {
                 account.setActivePricingRuleId(evaluation.getRule().getId());
                 account.setActivePricingRuleName(evaluation.getRule().getRuleName());
@@ -586,7 +595,8 @@ public class AccountService {
                 .prematurePenaltyGraceDays(resolvePenaltyGraceDays(product))
                 .build();
 
-        FdAccount savedAccount = accountRepository.save(account);
+        FdAccount pricedAccount = applyInitialPricing(account, principalTokens, authToken);
+        FdAccount savedAccount = accountRepository.save(pricedAccount);
         recordContractLedgerEntry(request.getCustomerId(), principalTokens, accountNo);
         log.info("Created V1 FD account (product defaults): {} for customer: {}", accountNo, request.getCustomerId());
 
@@ -662,7 +672,8 @@ public class AccountService {
                 .prematurePenaltyGraceDays(resolvePenaltyGraceDays(product))
                 .build();
 
-        FdAccount savedAccount = accountRepository.save(account);
+        FdAccount pricedAccount = applyInitialPricing(account, principalTokens, authToken);
+        FdAccount savedAccount = accountRepository.save(pricedAccount);
 
         recordInitialDepositTransaction(savedAccount, principalTokens);
         recordContractLedgerEntry(request.getCustomerId(), principalTokens, accountNo);
