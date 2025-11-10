@@ -51,6 +51,14 @@ const productSchema = z
     compoundingFrequency: z.string().min(1, "Select compounding frequency"),
     category: z.string().min(1, "Please select a category"),
     isActive: z.boolean(),
+    prematurePenaltyRate: z
+      .number()
+      .min(0, "Penalty rate must be ≥ 0")
+      .max(1, "Penalty rate cannot exceed 1 (100%)"),
+    prematurePenaltyGraceDays: z
+      .number()
+      .min(0, "Grace days must be ≥ 0")
+      .max(365, "Grace days cannot exceed 365"),
   })
   .refine((d) => d.minInterestRate <= d.maxInterestRate, {
     message: "Min rate must be ≤ max rate",
@@ -111,6 +119,8 @@ export function ProductForm() {
       compoundingFrequency: "ANNUAL",
       category: "",
       isActive: true,
+      prematurePenaltyRate: 0,
+      prematurePenaltyGraceDays: 0,
     },
   });
 
@@ -140,6 +150,10 @@ export function ProductForm() {
             ),
             category: (product.productType || "").toString().replace("_", " "),
             isActive: (product.status || "ACTIVE") === "ACTIVE",
+            prematurePenaltyRate: Number(product.prematurePenaltyRate ?? 0),
+            prematurePenaltyGraceDays: Number(
+              product.prematurePenaltyGraceDays ?? 0
+            ),
           });
         } catch (error) {
           console.error("Failed to fetch product:", error);
@@ -191,6 +205,8 @@ export function ProductForm() {
         expiryDate: null,
         regulatoryCode: "",
         requiresApproval: false,
+        prematurePenaltyRate: data.prematurePenaltyRate,
+        prematurePenaltyGraceDays: data.prematurePenaltyGraceDays,
       };
 
       if (isEdit) {
@@ -247,7 +263,7 @@ export function ProductForm() {
           size="sm"
           onClick={() => navigate("/products")}
         >
-          <ArrowLeft className="mr-2 h-4 w-4" />
+          <ArrowLeft className="h-4 w-4" />
           Back to Products
         </Button>
         <div>
@@ -317,6 +333,57 @@ export function ProductForm() {
                           ))}
                         </SelectContent>
                       </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <FormField
+                  control={form.control}
+                  name="prematurePenaltyRate"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Premature Penalty Rate (0 - 1)</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          step="0.001"
+                          min="0"
+                          max="1"
+                          placeholder="0.02"
+                          {...field}
+                          onChange={(e) =>
+                            field.onChange(Number(e.target.value))
+                          }
+                          disabled={isSaving}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="prematurePenaltyGraceDays"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Penalty Grace Period (days)</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          min="0"
+                          max="365"
+                          placeholder="30"
+                          {...field}
+                          onChange={(e) =>
+                            field.onChange(Number(e.target.value))
+                          }
+                          disabled={isSaving}
+                        />
+                      </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -553,12 +620,12 @@ export function ProductForm() {
                 <Button type="submit" disabled={isSaving}>
                   {isSaving ? (
                     <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      <Loader2 className="h-4 w-4 animate-spin" />
                       {isEdit ? "Updating..." : "Creating..."}
                     </>
                   ) : (
                     <>
-                      <Save className="mr-2 h-4 w-4" />
+                      <Save className="h-4 w-4" />
                       {isEdit ? "Update Product" : "Create Product"}
                     </>
                   )}

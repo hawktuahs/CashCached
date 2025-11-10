@@ -74,6 +74,24 @@ public class AccountController {
                 return ResponseEntity.ok(response);
         }
 
+        @PostMapping("/search")
+        @PreAuthorize("hasAnyRole('BANKOFFICER', 'ADMIN')")
+        @Operation(summary = "Search accounts with pagination", description = "Search and filter FD accounts with pagination support")
+        public ResponseEntity<ApiResponse<PagedResponse<AccountResponse>>> searchAccounts(
+                        @Valid @RequestBody AccountSearchRequest request) {
+
+                PagedResponse<AccountResponse> accounts = accountService.searchAccounts(request);
+
+                ApiResponse<PagedResponse<AccountResponse>> response = ApiResponse
+                                .<PagedResponse<AccountResponse>>builder()
+                                .success(true)
+                                .message("Accounts retrieved successfully")
+                                .data(accounts)
+                                .build();
+
+                return ResponseEntity.ok(response);
+        }
+
         @PutMapping("/{accountNo}/close")
         @PreAuthorize("hasAnyRole('BANKOFFICER', 'ADMIN')")
         @Operation(summary = "Close FD account", description = "Closes an active Fixed Deposit account with closure reason")

@@ -18,7 +18,7 @@ public class User {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(unique = true, nullable = false, length = 50)
+    @Column(nullable = false, unique = true, length = 50)
     private String username;
 
     @Column(nullable = false)
@@ -39,6 +39,22 @@ public class User {
 
     @Column(name = "preferred_currency", length = 10)
     private String preferredCurrency;
+
+    @Column(length = 500)
+    private String address;
+
+    @Column(length = 12)
+    private String aadhaarNumber;
+
+    @Column(length = 10)
+    private String panNumber;
+
+    @Column(name = "date_of_birth")
+    private java.time.LocalDate dateOfBirth;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "customer_classification", length = 20)
+    private CustomerClassification classification;
 
     @Column(nullable = false)
     private Boolean active;
@@ -68,6 +84,9 @@ public class User {
         if (preferredCurrency == null || preferredCurrency.isBlank()) {
             preferredCurrency = "KWD";
         }
+        if (username != null) {
+            username = username.trim();
+        }
     }
 
     @PreUpdate
@@ -75,10 +94,21 @@ public class User {
         updatedAt = LocalDateTime.now();
     }
 
+    public void setUsername(String username) {
+        this.username = username != null ? username.trim() : null;
+    }
+
     public enum Role {
         CUSTOMER,
         ADMIN,
         BANKOFFICER
+    }
+
+    public enum CustomerClassification {
+        MINOR,
+        REGULAR,
+        SENIOR,
+        VIP
     }
 
     public void setPreferredCurrency(String preferredCurrency) {

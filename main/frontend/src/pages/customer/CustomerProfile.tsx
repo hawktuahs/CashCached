@@ -43,6 +43,10 @@ const profileSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
   phoneNumber: z.string().optional(),
   preferredCurrency: z.string().min(1, "Select a currency"),
+  address: z.string().optional(),
+  dateOfBirth: z.string().optional(),
+  aadhaarNumber: z.string().optional(),
+  panNumber: z.string().optional(),
 });
 
 type ProfileFormData = z.infer<typeof profileSchema>;
@@ -53,6 +57,11 @@ interface CustomerProfile {
   fullName: string;
   email: string;
   phoneNumber?: string;
+  address?: string;
+  aadhaarNumber?: string;
+  panNumber?: string;
+  dateOfBirth?: string;
+  classification?: string;
   role: string;
   active: boolean;
   preferredCurrency?: string;
@@ -82,11 +91,15 @@ export function CustomerProfile() {
       fullName: "",
       email: "",
       phoneNumber: "",
-      preferredCurrency: "INR",
+      preferredCurrency: "KWD",
+      address: "",
+      dateOfBirth: "",
+      aadhaarNumber: "",
+      panNumber: "",
     },
   });
 
-  const currencyOptions = ["KWD", "USD", "INR", "GBP", "CAD", "MXN", "ZAR"];
+  const currencyOptions = ["KWD", "USD", "EUR", "GBP", "INR", "SAR", "AED"];
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -101,7 +114,11 @@ export function CustomerProfile() {
           fullName: profileData.fullName || "",
           email: profileData.email || "",
           phoneNumber: profileData.phoneNumber || "",
-          preferredCurrency: profileData.preferredCurrency || "INR",
+          preferredCurrency: profileData.preferredCurrency || "KWD",
+          address: profileData.address || "",
+          dateOfBirth: profileData.dateOfBirth || "",
+          aadhaarNumber: profileData.aadhaarNumber || "",
+          panNumber: profileData.panNumber || "",
         });
       } catch (error) {
         console.error("Failed to fetch profile:", error);
@@ -131,6 +148,10 @@ export function CustomerProfile() {
         email: data.email,
         phoneNumber: data.phoneNumber || "",
         preferredCurrency: data.preferredCurrency,
+        address: data.address || "",
+        dateOfBirth: data.dateOfBirth || "",
+        aadhaarNumber: data.aadhaarNumber || "",
+        panNumber: data.panNumber || "",
       };
       const response = await api.put("/api/customer/update", payload);
       setProfile(response.data);
@@ -150,7 +171,19 @@ export function CustomerProfile() {
     form.setValue("phoneNumber", profile?.phoneNumber || "", {
       shouldDirty: false,
     });
-    form.setValue("preferredCurrency", profile?.preferredCurrency || "INR", {
+    form.setValue("preferredCurrency", profile?.preferredCurrency || "KWD", {
+      shouldDirty: false,
+    });
+    form.setValue("address", profile?.address || "", {
+      shouldDirty: false,
+    });
+    form.setValue("dateOfBirth", profile?.dateOfBirth || "", {
+      shouldDirty: false,
+    });
+    form.setValue("aadhaarNumber", profile?.aadhaarNumber || "", {
+      shouldDirty: false,
+    });
+    form.setValue("panNumber", profile?.panNumber || "", {
       shouldDirty: false,
     });
     setIsEditing(false);
@@ -218,14 +251,103 @@ export function CustomerProfile() {
     return (
       <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <Skeleton className="h-8 w-48" />
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">
+              {t("profile.title")}
+            </h1>
+            <p className="text-muted-foreground">{t("profile.subtitle")}</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Skeleton className="h-6 w-24" />
+            <Skeleton className="h-10 w-32" />
+          </div>
         </div>
+
         <div className="grid gap-6 md:grid-cols-3">
           <div className="md:col-span-1">
-            <Skeleton className="h-96 w-full" />
+            <Card>
+              <CardHeader className="text-center">
+                <Skeleton className="mx-auto h-24 w-24 rounded-full" />
+                <Skeleton className="h-6 w-32 mx-auto mt-4" />
+                <Skeleton className="h-4 w-40 mx-auto mt-2" />
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center gap-3 text-sm">
+                  <Shield className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-muted-foreground">
+                    {t("profile.status")}
+                  </span>
+                  <Skeleton className="h-5 w-16" />
+                </div>
+                <Separator />
+                <div className="space-y-3">
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-3/4" />
+                </div>
+              </CardContent>
+            </Card>
           </div>
+
           <div className="md:col-span-2">
-            <Skeleton className="h-96 w-full" />
+            <Tabs defaultValue="personal" className="space-y-4">
+              <TabsList>
+                <TabsTrigger value="personal">
+                  {t("profile.tabs.personal")}
+                </TabsTrigger>
+                <TabsTrigger value="security">
+                  {t("profile.tabs.security")}
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="personal">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>{t("profile.section.personal.title")}</CardTitle>
+                    <CardDescription>
+                      {t("profile.section.personal.desc")}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-3">
+                      <Skeleton className="h-4 w-24" />
+                      <Skeleton className="h-10 w-full" />
+                    </div>
+                    <div className="space-y-3">
+                      <Skeleton className="h-4 w-24" />
+                      <Skeleton className="h-10 w-full" />
+                    </div>
+                    <div className="space-y-3">
+                      <Skeleton className="h-4 w-24" />
+                      <Skeleton className="h-10 w-full" />
+                    </div>
+                    <div className="space-y-3">
+                      <Skeleton className="h-4 w-24" />
+                      <Skeleton className="h-10 w-full" />
+                    </div>
+                  </CardContent>
+                  <CardContent className="flex gap-2 justify-end pt-0">
+                    <Skeleton className="h-10 w-24" />
+                    <Skeleton className="h-10 w-24" />
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="security">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>{t("profile.section.security.title")}</CardTitle>
+                    <CardDescription>
+                      {t("profile.section.security.desc")}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <Skeleton className="h-20 w-full" />
+                    <Skeleton className="h-20 w-full" />
+                    <Skeleton className="h-20 w-full" />
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            </Tabs>
           </div>
         </div>
       </div>
@@ -249,17 +371,17 @@ export function CustomerProfile() {
           </Badge>
           {!isEditing ? (
             <Button onClick={() => setIsEditing(true)}>
-              <Edit3 className="mr-2 h-4 w-4" />
+              <Edit3 className="h-4 w-4" />
               {t("profile.edit")}
             </Button>
           ) : (
             <div className="flex gap-2">
               <Button variant="outline" onClick={handleCancel}>
-                <X className="mr-2 h-4 w-4" />
+                <X className="h-4 w-4" />
                 {t("profile.cancel")}
               </Button>
               <Button onClick={form.handleSubmit(onSubmit)} disabled={isSaving}>
-                <Save className="mr-2 h-4 w-4" />
+                <Save className="h-4 w-4" />
                 {isSaving ? t("profile.saving") : t("profile.saveChanges")}
               </Button>
             </div>
@@ -291,6 +413,16 @@ export function CustomerProfile() {
                 </span>
                 <Badge variant="secondary">{t("profile.status.active")}</Badge>
               </div>
+              {profile?.classification && (
+                <div className="flex items-center gap-3 text-sm">
+                  <Shield className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-muted-foreground">Classification</span>
+                  <Badge variant="outline">
+                    {profile.classification.charAt(0).toUpperCase() +
+                      profile.classification.slice(1)}
+                  </Badge>
+                </div>
+              )}
               <Separator />
               <div className="space-y-2 text-sm">
                 <div className="flex items-center gap-3">
@@ -386,6 +518,81 @@ export function CustomerProfile() {
                           </FormItem>
                         )}
                       />
+
+                      <FormField
+                        control={form.control}
+                        name="dateOfBirth"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Date of Birth</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="date"
+                                {...field}
+                                disabled={!isEditing}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="address"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Address</FormLabel>
+                            <FormControl>
+                              <Input
+                                {...field}
+                                disabled={!isEditing}
+                                placeholder="Residential Address"
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <FormField
+                          control={form.control}
+                          name="aadhaarNumber"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Aadhaar Number</FormLabel>
+                              <FormControl>
+                                <Input
+                                  {...field}
+                                  disabled={!isEditing}
+                                  placeholder="12-digit"
+                                  maxLength={12}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="panNumber"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>PAN Number</FormLabel>
+                              <FormControl>
+                                <Input
+                                  {...field}
+                                  disabled={!isEditing}
+                                  placeholder="10-character"
+                                  maxLength={10}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
 
                       <FormField
                         control={form.control}
@@ -514,25 +721,37 @@ export function CustomerProfile() {
                             {t("profile.security.loginActivity.noActivity")}
                           </div>
                         ) : (
-                          activity.map((ev, idx) => (
-                            <div
-                              key={idx}
-                              className="px-4 py-3 text-sm flex items-start justify-between gap-4"
-                            >
-                              <div className="space-y-1">
-                                <div className="font-medium">{ev.type}</div>
-                                <div className="text-muted-foreground break-all max-w-[40ch]">
-                                  {ev.agent}
+                          activity.map(
+                            (
+                              ev: {
+                                type: string;
+                                ip: string;
+                                agent: string;
+                                timestamp: string;
+                              },
+                              idx: number
+                            ) => (
+                              <div
+                                key={idx}
+                                className="px-4 py-3 text-sm flex items-start justify-between gap-4"
+                              >
+                                <div className="space-y-1">
+                                  <div className="font-medium">{ev.type}</div>
+                                  <div className="text-muted-foreground break-all max-w-[40ch]">
+                                    {ev.agent}
+                                  </div>
+                                </div>
+                                <div className="text-right">
+                                  <div className="font-mono text-xs">
+                                    {ev.ip}
+                                  </div>
+                                  <div className="text-muted-foreground text-xs">
+                                    {new Date(ev.timestamp).toLocaleString()}
+                                  </div>
                                 </div>
                               </div>
-                              <div className="text-right">
-                                <div className="font-mono text-xs">{ev.ip}</div>
-                                <div className="text-muted-foreground text-xs">
-                                  {new Date(ev.timestamp).toLocaleString()}
-                                </div>
-                              </div>
-                            </div>
-                          ))
+                            )
+                          )
                         )}
                       </div>
                     </div>

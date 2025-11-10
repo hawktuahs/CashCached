@@ -60,3 +60,5 @@ dist-ssr
 *.env.local
 *.secret
 secrets/**
+
+main/src/main/resources/static

@@ -36,3 +36,7 @@ accounts:
   sequence:
     initial-value: 10000001
     prefix: FD
+  iban:
+    enabled: true
+    country-code: IN
+    bank-code: SBIN

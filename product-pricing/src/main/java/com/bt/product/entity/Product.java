@@ -62,6 +62,12 @@ public class Product {
     @Column(name = "status", nullable = false, length = 20)
     private ProductStatus status;
 
+    @Column(name = "premature_penalty_rate", precision = 5, scale = 4)
+    private BigDecimal prematurePenaltyRate;
+
+    @Column(name = "premature_penalty_grace_days")
+    private Integer prematurePenaltyGraceDays;
+
     @Column(name = "effective_date", nullable = false)
     private LocalDate effectiveDate;
 

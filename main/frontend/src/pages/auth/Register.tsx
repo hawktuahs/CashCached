@@ -39,7 +39,6 @@ const registerSchema = z
   .object({
     firstName: z.string().min(2, "First name must be at least 2 characters"),
     lastName: z.string().min(2, "Last name must be at least 2 characters"),
-    username: z.string().min(3, "Username must be at least 3 characters"),
     email: z.string().email("Please enter a valid email address"),
     password: z.string().min(6, "Password must be at least 6 characters"),
     confirmPassword: z.string(),
@@ -47,6 +46,18 @@ const registerSchema = z
       .string()
       .min(5, "Phone number is required")
       .max(20, "Phone number cannot exceed 20 characters"),
+    address: z.string().max(500, "Address cannot exceed 500 characters"),
+    dateOfBirth: z.string().refine((date) => {
+      const d = new Date(date);
+      return d < new Date();
+    }, "Date of birth must be in the past"),
+    aadhaarNumber: z.string().regex(/^\d{12}$/, "Aadhaar must be 12 digits"),
+    panNumber: z
+      .string()
+      .regex(/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/, "Invalid PAN format"),
+    preferredCurrency: z
+      .string()
+      .length(3, "Currency code must be 3 characters"),
     role: z.enum(["CUSTOMER", "BANKOFFICER", "ADMIN"]),
   })
   .refine((data) => data.password === data.confirmPassword, {
@@ -69,11 +80,15 @@ export function Register() {
     defaultValues: {
       firstName: "",
       lastName: "",
-      username: "",
       email: "",
       password: "",
       confirmPassword: "",
       phoneNumber: "",
+      address: "",
+      dateOfBirth: "",
+      aadhaarNumber: "",
+      panNumber: "",
+      preferredCurrency: "KWD",
       role: "CUSTOMER",
     },
   });
@@ -84,16 +99,20 @@ export function Register() {
       await register({
         firstName: data.firstName,
         lastName: data.lastName,
-        username: data.username,
         email: data.email,
         password: data.password,
         phoneNumber: data.phoneNumber,
+        address: data.address,
+        dateOfBirth: data.dateOfBirth,
+        aadhaarNumber: data.aadhaarNumber,
+        panNumber: data.panNumber,
+        preferredCurrency: data.preferredCurrency,
         role: data.role,
       });
-      toast.success("Registration successful!");
+      toast.success(t("auth.register.success"));
       navigate("/dashboard");
-    } catch (error) {
-      toast.error("Registration failed. Please try again.");
+    } catch {
+      toast.error(t("auth.register.failed"));
     } finally {
       setIsLoading(false);
     }
@@ -125,9 +144,12 @@ export function Register() {
                     name="firstName"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>{t("auth.field.firstName")}</FormLabel>
+                        <FormLabel htmlFor="register-firstName">
+                          {t("auth.field.firstName")}
+                        </FormLabel>
                         <FormControl>
                           <Input
+                            id="register-firstName"
                             placeholder={t("auth.placeholder.firstName")}
                             {...field}
                             disabled={isLoading}
@@ -142,9 +164,12 @@ export function Register() {
                     name="lastName"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>{t("auth.field.lastName")}</FormLabel>
+                        <FormLabel htmlFor="register-lastName">
+                          {t("auth.field.lastName")}
+                        </FormLabel>
                         <FormControl>
                           <Input
+                            id="register-lastName"
                             placeholder={t("auth.placeholder.lastName")}
                             {...field}
                             disabled={isLoading}
@@ -157,29 +182,15 @@ export function Register() {
                 </div>
                 <FormField
                   control={form.control}
-                  name="username"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t("auth.field.username")}</FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder={t("auth.placeholder.username")}
-                          {...field}
-                          disabled={isLoading}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
                   name="email"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>{t("auth.field.email")}</FormLabel>
+                      <FormLabel htmlFor="register-email">
+                        {t("auth.field.email")}
+                      </FormLabel>
                       <FormControl>
                         <Input
+                          id="register-email"
                           type="email"
                           placeholder={t("auth.placeholder.email")}
                           {...field}
@@ -195,13 +206,140 @@ export function Register() {
                   name="phoneNumber"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>{t("auth.field.phone")}</FormLabel>
+                      <FormLabel htmlFor="register-phone">
+                        {t("auth.field.phone")}
+                      </FormLabel>
                       <FormControl>
                         <Input
+                          id="register-phone"
+                          type="tel"
                           placeholder={t("auth.placeholder.phone")}
                           {...field}
                           disabled={isLoading}
                         />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="dateOfBirth"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel htmlFor="register-dateOfBirth">
+                        {t("auth.field.dateOfBirth")}
+                      </FormLabel>
+                      <FormControl>
+                        <Input
+                          id="register-dateOfBirth"
+                          type="date"
+                          {...field}
+                          disabled={isLoading}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="address"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel htmlFor="register-address">
+                        {t("auth.field.address")}
+                      </FormLabel>
+                      <FormControl>
+                        <Input
+                          id="register-address"
+                          placeholder={t("auth.placeholder.address")}
+                          {...field}
+                          disabled={isLoading}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="aadhaarNumber"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel htmlFor="register-aadhaar">
+                          {t("auth.field.aadhaarNumber")}
+                        </FormLabel>
+                        <FormControl>
+                          <Input
+                            id="register-aadhaar"
+                            placeholder={t("auth.placeholder.aadhaarNumber")}
+                            {...field}
+                            disabled={isLoading}
+                            maxLength={12}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="panNumber"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel htmlFor="register-pan">
+                          {t("auth.field.panNumber")}
+                        </FormLabel>
+                        <FormControl>
+                          <Input
+                            id="register-pan"
+                            placeholder={t("auth.placeholder.panNumber")}
+                            {...field}
+                            disabled={isLoading}
+                            maxLength={10}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+                <FormField
+                  control={form.control}
+                  name="preferredCurrency"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t("auth.field.preferredCurrency")}</FormLabel>
+                      <FormControl>
+                        <Select
+                          onValueChange={field.onChange}
+                          defaultValue={field.value}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select currency" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="KWD">
+                              KWD - Kuwaiti Dinar
+                            </SelectItem>
+                            <SelectItem value="USD">USD - US Dollar</SelectItem>
+                            <SelectItem value="EUR">EUR - Euro</SelectItem>
+                            <SelectItem value="GBP">
+                              GBP - British Pound
+                            </SelectItem>
+                            <SelectItem value="INR">
+                              INR - Indian Rupee
+                            </SelectItem>
+                            <SelectItem value="SAR">
+                              SAR - Saudi Riyal
+                            </SelectItem>
+                            <SelectItem value="AED">
+                              AED - UAE Dirham
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -245,10 +383,13 @@ export function Register() {
                   name="password"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>{t("auth.field.password")}</FormLabel>
+                      <FormLabel htmlFor="register-password">
+                        {t("auth.field.password")}
+                      </FormLabel>
                       <FormControl>
                         <div className="relative">
                           <Input
+                            id="register-password"
                             type={showPassword ? "text" : "password"}
                             placeholder={t("auth.placeholder.password")}
                             {...field}
@@ -284,10 +425,13 @@ export function Register() {
                   name="confirmPassword"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>{t("auth.field.confirmPassword")}</FormLabel>
+                      <FormLabel htmlFor="register-confirmPassword">
+                        {t("auth.field.confirmPassword")}
+                      </FormLabel>
                       <FormControl>
                         <div className="relative">
                           <Input
+                            id="register-confirmPassword"
                             type={showConfirmPassword ? "text" : "password"}
                             placeholder={t("auth.placeholder.confirmPassword")}
                             {...field}
@@ -323,7 +467,7 @@ export function Register() {
                 <Button type="submit" className="w-full" disabled={isLoading}>
                   {isLoading ? (
                     <>
-                      <Spinner className="mr-2 h-4 w-4" />
+                      <Spinner className="h-4 w-4 animate-spin" />
                       {t("auth.register.creating")}
                     </>
                   ) : (

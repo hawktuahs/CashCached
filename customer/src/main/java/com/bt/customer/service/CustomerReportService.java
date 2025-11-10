@@ -61,7 +61,6 @@ public class CustomerReportService {
             for (User customer : customers) {
                 csvPrinter.printRecord(
                         customer.getId(),
-                        customer.getUsername(),
                         customer.getFullName(),
                         customer.getEmail(),
                         customer.getPhoneNumber(),

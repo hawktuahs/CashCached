@@ -4,6 +4,7 @@ import com.bt.customer.entity.User;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.*;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Getter
@@ -17,9 +18,6 @@ public class UserProfileResponse {
     @Schema(description = "User ID", example = "1")
     private Long id;
 
-    @Schema(description = "Username", example = "john_doe")
-    private String username;
-
     @Schema(description = "Full name", example = "John Doe")
     private String fullName;
 
@@ -28,6 +26,18 @@ public class UserProfileResponse {
 
     @Schema(description = "Phone number", example = "+1234567890")
     private String phoneNumber;
+
+    @Schema(description = "Date of birth", example = "1990-05-15")
+    private LocalDate dateOfBirth;
+
+    @Schema(description = "Residential address", example = "123 Main Street, City, State 12345")
+    private String address;
+
+    @Schema(description = "Aadhaar number (12 digits)", example = "123456789012")
+    private String aadhaarNumber;
+
+    @Schema(description = "PAN number (10 characters)", example = "ABCDE1234F")
+    private String panNumber;
 
     @Schema(description = "User role", example = "CUSTOMER")
     private String role;
@@ -47,10 +57,13 @@ public class UserProfileResponse {
     public static UserProfileResponse fromUser(User user) {
         return UserProfileResponse.builder()
                 .id(user.getId())
-                .username(user.getUsername())
                 .fullName(user.getFullName())
                 .email(user.getEmail())
                 .phoneNumber(user.getPhoneNumber())
+                .dateOfBirth(user.getDateOfBirth())
+                .address(user.getAddress())
+                .aadhaarNumber(user.getAadhaarNumber())
+                .panNumber(user.getPanNumber())
                 .role(user.getRole().name())
                 .active(user.getActive())
                 .preferredCurrency(user.getPreferredCurrency())

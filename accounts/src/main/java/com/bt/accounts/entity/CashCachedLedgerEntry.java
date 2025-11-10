@@ -20,6 +20,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import com.bt.accounts.time.TimeProvider;
+
 @Entity
 @Table(name = "cashcached_ledger", indexes = {
         @Index(name = "idx_cashcached_customer", columnList = "customer_id"),
@@ -36,7 +38,8 @@ public class CashCachedLedgerEntry {
         ISSUE,
         TRANSFER_IN,
         TRANSFER_OUT,
-        REDEEM
+        REDEEM,
+        CONTRACT
     }
 
     @Id
@@ -67,6 +70,6 @@ public class CashCachedLedgerEntry {
 
     @PrePersist
     void assignTimestamp() {
-        createdAt = LocalDateTime.now();
+        createdAt = TimeProvider.currentDateTime();
     }
 }

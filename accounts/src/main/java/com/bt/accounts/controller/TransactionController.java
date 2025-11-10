@@ -46,18 +46,11 @@ public class TransactionController {
 
     @GetMapping("/{accountNo}/transactions")
     @Operation(summary = "Get account transactions", description = "Retrieves all transactions for a specific account ordered by date")
-    public ResponseEntity<ApiResponse<List<TransactionResponse>>> getAccountTransactions(
+    public ResponseEntity<ApiResponse<List<TransactionResponse>>> getTransactions(
             @Parameter(description = "FD Account number") @PathVariable String accountNo) {
 
         List<TransactionResponse> transactions = transactionService.getAccountTransactions(accountNo);
-
-        ApiResponse<List<TransactionResponse>> response = ApiResponse.<List<TransactionResponse>>builder()
-                .success(true)
-                .message("Transactions retrieved successfully")
-                .data(transactions)
-                .build();
-
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(ApiResponse.success(transactions));
     }
 
     @PostMapping("/{accountNo}/transactions/self")

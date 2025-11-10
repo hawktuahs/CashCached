@@ -10,13 +10,16 @@ import com.bt.accounts.exception.InvalidAccountDataException;
 import com.bt.accounts.exception.ServiceIntegrationException;
 import com.bt.accounts.repository.AccountTransactionRepository;
 import com.bt.accounts.repository.FdAccountRepository;
+import com.bt.accounts.time.TimeProvider;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cache.Cache;
+import org.springframework.cache.CacheManager;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.beans.factory.annotation.Value;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -32,6 +35,7 @@ public class TransactionService {
     private final FdAccountRepository accountRepository;
     private final CashCachedService cashCachedService;
     private final PricingRuleEvaluator pricingRuleEvaluator;
+    private final CacheManager cacheManager;
     @Value("${self.txn.relaxed:false}")
     private boolean selfTxnRelaxed;
 
@@ -49,16 +53,26 @@ public class TransactionService {
             throw new InvalidAccountDataException("Cannot record transaction on closed account: " + accountNo);
         }
 
-        String transactionId = generateTransactionId(accountNo);
-
         AccountTransaction.TransactionType type = AccountTransaction.TransactionType
                 .valueOf(request.getTransactionType());
+
+        if ("FIXED_DEPOSIT".equalsIgnoreCase(account.getProductType())
+                && (AccountTransaction.TransactionType.DEPOSIT == type
+                        || AccountTransaction.TransactionType.WITHDRAWAL == type)) {
+            throw new InvalidAccountDataException(
+                    "CashCached deposits or withdrawals are disabled for fixed deposit accounts. Please use redemption.");
+        }
+
+        String transactionId = generateTransactionId(accountNo);
         BigDecimal amountTokens = requireTokenAmount(request.getAmount());
         BigDecimal currentBalance = calculateCurrentBalance(accountNo);
         PricingRuleEvaluator.EvaluationResult pricing = applyPricingRules(account, currentBalance, null);
         BigDecimal newBalance = calculateNewBalance(currentBalance, type, amountTokens);
 
-        reconcileWalletForTransaction(account, type, amountTokens, request.getReferenceNo());
+        if (!("FIXED_DEPOSIT".equalsIgnoreCase(account.getProductType())
+                && AccountTransaction.TransactionType.INTEREST_CREDIT == type)) {
+            reconcileWalletForTransaction(account, type, amountTokens, request.getReferenceNo());
+        }
         applyPenaltyIfNeeded(account, pricing.getPenalty(), request.getReferenceNo());
 
         AccountTransaction transaction = AccountTransaction.builder()
@@ -80,7 +94,9 @@ public class TransactionService {
         AccountTransaction savedTransaction = transactionRepository.save(transaction);
         log.info("Recorded transaction: {} for account: {}", transactionId, accountNo);
 
-        return TransactionResponse.fromEntity(savedTransaction);
+        TransactionResponse response = TransactionResponse.fromEntity(savedTransaction);
+        evictCaches(account);
+        return response;
     }
 
     @Transactional
@@ -91,6 +107,11 @@ public class TransactionService {
 
         if (account.getStatus() == FdAccount.AccountStatus.CLOSED) {
             throw new InvalidAccountDataException("Cannot record transaction on closed account: " + accountNo);
+        }
+
+        if ("FIXED_DEPOSIT".equalsIgnoreCase(account.getProductType())) {
+            throw new InvalidAccountDataException(
+                    "CashCached deposits or withdrawals are disabled for fixed deposit accounts. Please use redemption.");
         }
 
         String subject = getCurrentUsername();
@@ -157,9 +178,11 @@ public class TransactionService {
                 .remarks(request.getRemarks())
                 .build();
 
-        AccountTransaction saved = transactionRepository.save(transaction);
         reconcileWalletForTransaction(account, type, amountTokens, request.getReferenceNo());
+
+        AccountTransaction saved = transactionRepository.save(transaction);
         applyPenaltyIfNeeded(account, pricing.getPenalty(), request.getReferenceNo());
+        evictCaches(account);
         return TransactionResponse.fromEntity(saved);
     }
 
@@ -237,7 +260,7 @@ public class TransactionService {
         if (hasRule) {
             account.setActivePricingRuleId(result.getRule().getId());
             account.setActivePricingRuleName(result.getRule().getRuleName());
-            account.setPricingRuleAppliedAt(LocalDateTime.now());
+            account.setPricingRuleAppliedAt(TimeProvider.currentDateTime());
         } else {
             account.setActivePricingRuleId(null);
             account.setActivePricingRuleName(null);
@@ -259,7 +282,7 @@ public class TransactionService {
                 .transactionId(txnId)
                 .accountNo(accountNo)
                 .transactionType(AccountTransaction.TransactionType.PENALTY_DEBIT)
-                .amount(penalty)
+                .amount(penalty.negate())
                 .balanceAfter(calculateNewBalance(calculateCurrentBalance(accountNo),
                         AccountTransaction.TransactionType.PENALTY_DEBIT, penalty))
                 .description("Pricing rule penalty")
@@ -270,6 +293,7 @@ public class TransactionService {
         penaltyTxn = transactionRepository.save(penaltyTxn);
         reconcileWalletForTransaction(account, AccountTransaction.TransactionType.PENALTY_DEBIT, penalty, reference);
         log.info("Applied penalty {} to account {} due to pricing rule", penalty, accountNo);
+        evictCaches(account);
     }
 
     private String generateTransactionId(String accountNo) {
@@ -306,15 +330,9 @@ public class TransactionService {
         if (AccountTransaction.TransactionType.DEPOSIT == type) {
             cashCachedService.debitWallet(customerId, amountTokens, "Deposit to account " + txnReference);
         } else if (AccountTransaction.TransactionType.WITHDRAWAL == type
-                || AccountTransaction.TransactionType.PENALTY_DEBIT == type
-                || AccountTransaction.TransactionType.PREMATURE_CLOSURE == type) {
+                || AccountTransaction.TransactionType.PREMATURE_CLOSURE == type
+                || AccountTransaction.TransactionType.MATURITY_PAYOUT == type) {
             cashCachedService.creditWallet(customerId, amountTokens, "Withdrawal from account " + txnReference);
-        } else if (AccountTransaction.TransactionType.MATURITY_PAYOUT == type) {
-            CashCachedIssueRequest request = new CashCachedIssueRequest();
-            request.setCustomerId(customerId);
-            request.setAmount(amountTokens);
-            request.setReference("Maturity payout " + txnReference);
-            cashCachedService.issue(request);
         }
     }
 
@@ -354,5 +372,23 @@ public class TransactionService {
         if (name != null && !name.isBlank())
             return name;
         return null;
+    }
+
+    private void evictCaches(FdAccount account) {
+        if (cacheManager == null || account == null) {
+            return;
+        }
+        Cache accountsCache = cacheManager.getCache("accounts");
+        if (accountsCache != null) {
+            accountsCache.evict(account.getAccountNo());
+        }
+        Cache customerAccountsCache = cacheManager.getCache("customerAccounts");
+        if (customerAccountsCache != null) {
+            customerAccountsCache.evict(account.getCustomerId());
+        }
+        Cache redemptionCache = cacheManager.getCache("redemptionEnquiry");
+        if (redemptionCache != null) {
+            redemptionCache.evict(account.getAccountNo());
+        }
     }
 }

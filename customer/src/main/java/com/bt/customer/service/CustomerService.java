@@ -63,6 +63,22 @@ public class CustomerService {
             user.setPhoneNumber(request.getPhoneNumber());
         }
 
+        if (request.getDateOfBirth() != null) {
+            user.setDateOfBirth(request.getDateOfBirth());
+        }
+
+        if (request.getAddress() != null && !request.getAddress().isBlank()) {
+            user.setAddress(request.getAddress());
+        }
+
+        if (request.getAadhaarNumber() != null && !request.getAadhaarNumber().isBlank()) {
+            user.setAadhaarNumber(request.getAadhaarNumber());
+        }
+
+        if (request.getPanNumber() != null && !request.getPanNumber().isBlank()) {
+            user.setPanNumber(request.getPanNumber());
+        }
+
         if (request.getPreferredCurrency() != null) {
             String code = request.getPreferredCurrency().trim().toUpperCase();
             if (!code.isEmpty()) {
@@ -76,9 +92,9 @@ public class CustomerService {
 
     public User getCurrentUser() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        String username = authentication.getName();
+        String email = authentication.getName();
 
-        return userRepository.findByUsername(username)
+        return userRepository.findByEmail(email)
                 .orElseThrow(() -> new UserNotFoundException("Current user not found"));
     }
 
@@ -86,7 +102,7 @@ public class CustomerService {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
 
-        return userRepository.findByUsername(userPrincipal.getUsername())
+        return userRepository.findByEmail(userPrincipal.getUsername())
                 .map(user -> user.getRole().name())
                 .orElse("UNKNOWN");
     }
@@ -102,14 +118,14 @@ public class CustomerService {
         User user = getCurrentUser();
         user.setTwoFactorEnabled(true);
         userRepository.save(user);
-        log.info("Two-factor authentication enabled for user: {}", user.getUsername());
+        log.info("Two-factor authentication enabled for user: {}", user.getEmail());
     }
 
     public void disableTwoFactorForCurrentUser() {
         User user = getCurrentUser();
         user.setTwoFactorEnabled(false);
         userRepository.save(user);
-        log.info("Two-factor authentication disabled for user: {}", user.getUsername());
+        log.info("Two-factor authentication disabled for user: {}", user.getEmail());
     }
 
     public boolean isTwoFactorEnabledForCurrentUser() {
@@ -117,8 +133,8 @@ public class CustomerService {
         return Boolean.TRUE.equals(user.getTwoFactorEnabled());
     }
 
-    public boolean isTwoFactorEnabled(String username) {
-        return userRepository.findByUsername(username)
+    public boolean isTwoFactorEnabled(String email) {
+        return userRepository.findByEmail(email)
                 .map(user -> Boolean.TRUE.equals(user.getTwoFactorEnabled()))
                 .orElse(false);
     }
